@@ -63,3 +63,10 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+/** Design tokens for the Menu screen, from the Figma "Menu" frame (430×932). */
+export const Menu = {
+  frameWidth: 430,
+  overlay: 'rgba(0, 0, 0, 0.4)',
+  textPrimary: '#FFFFFF',
+} as const;
