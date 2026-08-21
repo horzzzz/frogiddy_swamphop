@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CounterPill } from '@/components/menu/counter-pill';
@@ -26,11 +26,16 @@ export default function Index() {
             <CounterPill icon={require('@/assets/images/menu/icon-coin.webp')} value={String(coins)} />
             <CounterPill icon={require('@/assets/images/menu/icon-blu.webp')} value="1" />
           </View>
-          <Image
-            source={require('@/assets/images/menu/icon-gear.webp')}
-            style={styles.gear}
-            contentFit="contain"
-          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            onPress={() => router.push('/settings')}>
+            <Image
+              source={require('@/assets/images/menu/icon-gear.webp')}
+              style={styles.gear}
+              contentFit="contain"
+            />
+          </Pressable>
         </View>
 
         <Image
