@@ -77,7 +77,11 @@ export default function Index() {
               label="Daily Rewards"
               onPress={() => setShowDailyBonus(true)}
             />
-            <MenuTile icon={require('@/assets/images/menu/icon-podium.webp')} label="Leaderboards" />
+            <MenuTile
+              icon={require('@/assets/images/menu/icon-podium.webp')}
+              label="Leaderboards"
+              onPress={() => router.push('/leaderboard')}
+            />
           </View>
         </View>
 
