@@ -1,16 +1,33 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type MenuTileProps = {
   icon: number;
   label: string;
+  onPress?: () => void;
 };
 
-export function MenuTile({ icon, label }: MenuTileProps) {
+export function MenuTile({ icon, label, onPress }: MenuTileProps) {
+  const pressed = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - pressed.value * 0.05 }],
+  }));
+
   return (
-    <View style={styles.container}>
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={!onPress}
+      onPress={onPress}
+      onPressIn={() => (pressed.value = withTiming(1, { duration: 80 }))}
+      onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
+      style={[styles.container, animatedStyle]}>
       <Image
         source={require('@/assets/images/menu/panel-tile.webp')}
         style={StyleSheet.absoluteFill}
@@ -18,7 +35,7 @@ export function MenuTile({ icon, label }: MenuTileProps) {
       />
       <Image source={icon} style={styles.icon} contentFit="contain" />
       <Text style={styles.label}>{label}</Text>
-    </View>
+    </AnimatedPressable>
   );
 }
 

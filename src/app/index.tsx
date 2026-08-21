@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,15 +8,20 @@ import { LegalText } from '@/components/menu/legal-text';
 import { MenuButton } from '@/components/menu/menu-button';
 import { MenuTile } from '@/components/menu/menu-tile';
 import { SwampBackground } from '@/components/menu/swamp-background';
+import { DailyBonusModal } from '@/components/modal/daily-bonus-modal';
 import { Menu } from '@/constants/theme';
+import { useEconomy } from '@/state/economy';
 
 export default function Index() {
+  const { coins } = useEconomy();
+  const [showDailyBonus, setShowDailyBonus] = useState(false);
+
   return (
     <SwampBackground>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topRow}>
           <View style={styles.pills}>
-            <CounterPill icon={require('@/assets/images/menu/icon-coin.webp')} value="1243" />
+            <CounterPill icon={require('@/assets/images/menu/icon-coin.webp')} value={String(coins)} />
             <CounterPill icon={require('@/assets/images/menu/icon-blu.webp')} value="1" />
           </View>
           <Image
@@ -60,13 +66,19 @@ export default function Index() {
 
           <View style={styles.tileRow}>
             <MenuTile icon={require('@/assets/images/menu/icon-wheel.webp')} label="Wheel of Luck" />
-            <MenuTile icon={require('@/assets/images/menu/icon-gift.webp')} label="Daily Rewards" />
+            <MenuTile
+              icon={require('@/assets/images/menu/icon-gift.webp')}
+              label="Daily Rewards"
+              onPress={() => setShowDailyBonus(true)}
+            />
             <MenuTile icon={require('@/assets/images/menu/icon-podium.webp')} label="Leaderboards" />
           </View>
         </View>
 
         <LegalText />
       </SafeAreaView>
+
+      <DailyBonusModal visible={showDailyBonus} onClose={() => setShowDailyBonus(false)} />
     </SwampBackground>
   );
 }

@@ -4,8 +4,10 @@
   "version": "1.0.0",
   "dependencies": {
     "@appmetrica/react-native-analytics": "^4.2.0",
+    "@expo-google-fonts/black-han-sans": "^0.4.1",
     "@expo-google-fonts/poetsen-one": "^0.4.0",
     "@expo/ui": "~57.0.12",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.15",
     "expo-audio": "~57.0.3",
@@ -51,6 +53,5 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "private": true,
-  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621"
+  "private": true
 }

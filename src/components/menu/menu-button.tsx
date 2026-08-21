@@ -1,62 +1,75 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
 
 /** Width:height ratio every menu button is locked to, regardless of its content. */
 const BUTTON_ASPECT_RATIO = 3.2;
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+type CommonProps = {
+  label: string;
+  onPress?: () => void;
+  disabled?: boolean;
+};
+
 type MenuButtonProps =
-  | {
-      label: string;
+  | (CommonProps & {
       locked?: false;
-    }
-  | {
-      label: string;
+    })
+  | (CommonProps & {
       locked: true;
       hint: string;
       hintIcon: number;
-    };
+    });
 
 export function MenuButton(props: MenuButtonProps) {
-  if (!props.locked) {
-    return (
-      <View style={styles.container}>
-        <Image
-          source={require('@/assets/images/menu/btn-green.webp')}
-          style={StyleSheet.absoluteFill}
-          contentFit="fill"
-        />
-        <Text style={styles.title}>{props.label}</Text>
-      </View>
-    );
-  }
+  const { label, onPress, disabled = false } = props;
+  const pressed = useSharedValue(0);
 
-  return (
-    <View style={[styles.container, styles.locked]}>
-      <Image
-        source={require('@/assets/images/menu/btn-green.webp')}
-        style={StyleSheet.absoluteFill}
-        contentFit="fill"
-      />
-      <Image
-        source={require('@/assets/images/menu/icon-lock.webp')}
-        style={styles.lock}
-        contentFit="contain"
-      />
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - pressed.value * 0.03 }],
+  }));
+
+  const content = !props.locked ? (
+    <Text style={styles.title}>{label}</Text>
+  ) : (
+    <>
+      <Image source={require('@/assets/images/menu/icon-lock.webp')} style={styles.lock} contentFit="contain" />
       <View style={styles.lockedCenter}>
-        <Text style={styles.lockedTitle}>{props.label}</Text>
+        <Text style={styles.lockedTitle}>{label}</Text>
         <View style={styles.hintRow}>
           <Text style={styles.hint}>{props.hint}</Text>
           <Image source={props.hintIcon} style={styles.hintIcon} contentFit="contain" />
         </View>
       </View>
+      <Image source={require('@/assets/images/menu/icon-lock.webp')} style={styles.lock} contentFit="contain" />
+    </>
+  );
+
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled || !onPress}
+      onPress={onPress}
+      onPressIn={() => (pressed.value = withTiming(1, { duration: 80 }))}
+      onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
+      style={[
+        styles.container,
+        props.locked && styles.locked,
+        animatedStyle,
+        { opacity: disabled ? 0.5 : 1 },
+      ]}>
       <Image
-        source={require('@/assets/images/menu/icon-lock.webp')}
-        style={styles.lock}
-        contentFit="contain"
+        source={require('@/assets/images/menu/btn-green.webp')}
+        style={StyleSheet.absoluteFill}
+        contentFit="fill"
       />
-    </View>
+      {content}
+    </AnimatedPressable>
   );
 }
 
@@ -80,8 +93,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   lock: {
-    width: 68,
-    height: 68,
+    width: 48,
+    height: 48,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
@@ -93,7 +106,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   lockedTitle: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: '700',
     color: Menu.textPrimary,
     textAlign: 'center',
