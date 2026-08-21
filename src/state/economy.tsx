@@ -7,14 +7,21 @@ export const DAILY_BONUS_AMOUNT = 1000;
 /** Daily bonus chest resets once per day. */
 export const DAILY_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+/** Wheel of Luck resets once per day, same as the chest — free spins bypass this. */
+export const WHEEL_SPIN_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export type WalletData = {
   coins: number;
   lastDailyBonusAt: number | null;
+  freeSpins: number;
+  lastWheelSpinAt: number | null;
 };
 
 const INITIAL_WALLET: WalletData = {
   coins: 0,
   lastDailyBonusAt: null,
+  freeSpins: 0,
+  lastWheelSpinAt: null,
 };
 
 /** Merges a persisted blob into the current shape so older saves keep working. */
@@ -25,6 +32,8 @@ function reconcile(raw: unknown): WalletData {
   return {
     coins: Number.isFinite(saved.coins) ? Math.max(0, Math.floor(saved.coins as number)) : 0,
     lastDailyBonusAt: typeof saved.lastDailyBonusAt === 'number' ? saved.lastDailyBonusAt : null,
+    freeSpins: Number.isFinite(saved.freeSpins) ? Math.max(0, Math.floor(saved.freeSpins as number)) : 0,
+    lastWheelSpinAt: typeof saved.lastWheelSpinAt === 'number' ? saved.lastWheelSpinAt : null,
   };
 }
 
@@ -33,11 +42,19 @@ type EconomyContextValue = {
   ready: boolean;
   coins: number;
   lastDailyBonusAt: number | null;
+  freeSpins: number;
+  lastWheelSpinAt: number | null;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
   /** Returns false without changing the balance if it would go negative. */
   spendCoins: (amount: number) => boolean;
   claimDailyBonus: () => void;
+  grantFreeSpins: (amount: number) => void;
+  /**
+   * Consumes one attempt: a free spin if available, otherwise starts the daily
+   * cooldown. Returns false without changing anything if neither is available.
+   */
+  spinWheel: () => boolean;
 };
 
 const EconomyContext = createContext<EconomyContextValue | null>(null);
@@ -100,16 +117,39 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const grantFreeSpins = useCallback((amount: number) => {
+    if (amount <= 0) return;
+    setWallet((prev) => ({ ...prev, freeSpins: prev.freeSpins + Math.floor(amount) }));
+  }, []);
+
+  const spinWheel = useCallback(() => {
+    let ok = false;
+    setWallet((prev) => {
+      if (prev.freeSpins > 0) {
+        ok = true;
+        return { ...prev, freeSpins: prev.freeSpins - 1 };
+      }
+      if (cooldownRemaining(prev.lastWheelSpinAt, WHEEL_SPIN_COOLDOWN_MS) > 0) return prev;
+      ok = true;
+      return { ...prev, lastWheelSpinAt: Date.now() };
+    });
+    return ok;
+  }, []);
+
   const value = useMemo<EconomyContextValue>(
     () => ({
       ready,
       coins: wallet.coins,
       lastDailyBonusAt: wallet.lastDailyBonusAt,
+      freeSpins: wallet.freeSpins,
+      lastWheelSpinAt: wallet.lastWheelSpinAt,
       addCoins,
       spendCoins,
       claimDailyBonus,
+      grantFreeSpins,
+      spinWheel,
     }),
-    [ready, wallet, addCoins, spendCoins, claimDailyBonus]
+    [ready, wallet, addCoins, spendCoins, claimDailyBonus, grantFreeSpins, spinWheel]
   );
 
   return <EconomyContext.Provider value={value}>{children}</EconomyContext.Provider>;
@@ -121,8 +161,8 @@ export function useEconomy() {
   return context;
 }
 
-/** Milliseconds until the daily chest can be claimed again, or 0 when it is ready. */
-export function dailyBonusRemaining(lastClaimAt: number | null, now = Date.now()) {
-  if (lastClaimAt === null) return 0;
-  return Math.max(0, lastClaimAt + DAILY_BONUS_COOLDOWN_MS - now);
+/** Milliseconds until a cooldown started at `startedAt` clears, or 0 when it's ready. */
+export function cooldownRemaining(startedAt: number | null, cooldownMs: number, now = Date.now()) {
+  if (startedAt === null) return 0;
+  return Math.max(0, startedAt + cooldownMs - now);
 }

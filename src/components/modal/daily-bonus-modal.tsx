@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { GameModal } from '@/components/modal/game-modal';
 import { MenuButton } from '@/components/menu/menu-button';
 import { Menu } from '@/constants/theme';
-import { DAILY_BONUS_AMOUNT, dailyBonusRemaining, useEconomy } from '@/state/economy';
+import { cooldownRemaining, DAILY_BONUS_AMOUNT, DAILY_BONUS_COOLDOWN_MS, useEconomy } from '@/state/economy';
 
 const CONTENT_WIDTH = 320;
 
@@ -16,12 +16,15 @@ type DailyBonusModalProps = {
 
 export function DailyBonusModal({ visible, onClose }: DailyBonusModalProps) {
   const { lastDailyBonusAt, claimDailyBonus } = useEconomy();
-  const [remaining, setRemaining] = useState(() => dailyBonusRemaining(lastDailyBonusAt));
+  const [remaining, setRemaining] = useState(() => cooldownRemaining(lastDailyBonusAt, DAILY_BONUS_COOLDOWN_MS));
 
   useEffect(() => {
     if (!visible) return;
-    setRemaining(dailyBonusRemaining(lastDailyBonusAt));
-    const timer = setInterval(() => setRemaining(dailyBonusRemaining(lastDailyBonusAt)), 1000);
+    setRemaining(cooldownRemaining(lastDailyBonusAt, DAILY_BONUS_COOLDOWN_MS));
+    const timer = setInterval(
+      () => setRemaining(cooldownRemaining(lastDailyBonusAt, DAILY_BONUS_COOLDOWN_MS)),
+      1000
+    );
     return () => clearInterval(timer);
   }, [visible, lastDailyBonusAt]);
 

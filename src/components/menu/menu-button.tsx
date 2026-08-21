@@ -34,7 +34,9 @@ export function MenuButton(props: MenuButtonProps) {
   }));
 
   const content = !props.locked ? (
-    <Text style={styles.title}>{label}</Text>
+    <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+      {label}
+    </Text>
   ) : (
     <>
       <Image source={require('@/assets/images/menu/icon-lock.webp')} style={styles.lock} contentFit="contain" />

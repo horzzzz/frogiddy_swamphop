@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +14,7 @@ import { Menu } from '@/constants/theme';
 import { useEconomy } from '@/state/economy';
 
 export default function Index() {
+  const router = useRouter();
   const { coins } = useEconomy();
   const [showDailyBonus, setShowDailyBonus] = useState(false);
 
@@ -65,7 +67,11 @@ export default function Index() {
           </View>
 
           <View style={styles.tileRow}>
-            <MenuTile icon={require('@/assets/images/menu/icon-wheel.webp')} label="Wheel of Luck" />
+            <MenuTile
+              icon={require('@/assets/images/menu/icon-wheel.webp')}
+              label="Wheel of Luck"
+              onPress={() => router.push('/wheel')}
+            />
             <MenuTile
               icon={require('@/assets/images/menu/icon-gift.webp')}
               label="Daily Rewards"
