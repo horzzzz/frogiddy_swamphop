@@ -18,12 +18,24 @@ import {
   SQUASH_MAX_SQUASH,
   SQUASH_MAX_STRETCH,
   SQUASH_REFERENCE_SPEED,
+  TONGUE_HIGHLIGHT_RADIUS,
+  TONGUE_MOUTH_X,
+  TONGUE_MOUTH_Y,
+  TONGUE_RANGE,
+  TONGUE_TIP_RADIUS,
   TRAJECTORY_DOTS,
   TRAJECTORY_DOT_INTERVAL,
   TRAJECTORY_DOT_RADIUS,
 } from '@/game/constants';
-import { wrapX } from '@/game/physics';
-import { FrogState, PICKUP_SPECS, PLATFORM_SPECS, type GameState } from '@/game/types';
+import { wrapX, wrappedDeltaX } from '@/game/physics';
+import {
+  FrogState,
+  PICKUP_SPECS,
+  PLATFORM_SPECS,
+  TongueState,
+  TongueTarget,
+  type GameState,
+} from '@/game/types';
 
 /** An image plus a preallocated rect covering all of it, so no `width()` call happens per frame. */
 export type Sprite = {
@@ -63,6 +75,12 @@ export const FrogSprite = {
 export type RenderScratch = {
   paint: SkPaint;
   dotPaint: SkPaint;
+  /** Stroked, round-capped: the tongue itself. */
+  tonguePaint: SkPaint;
+  /** Filled: the blob on the end of the tongue. */
+  tongueTipPaint: SkPaint;
+  /** Stroked: the ground aim ray and the ring around the anchor it would grab. */
+  aimPaint: SkPaint;
   dst: SkHostRect;
   /** Only the background needs a variable source rect, for its cover crop. */
   src: SkHostRect;
@@ -71,6 +89,10 @@ export type RenderScratch = {
 function frogSpriteFor(state: GameState): number {
   'worklet';
   if (state.frogState === FrogState.Dead) return FrogSprite.Dead;
+  if (state.attackTimer > 0) return FrogSprite.Attack;
+  // Readying the tongue counts too — the pose is the feedback that a hold has
+  // matured into an aim.
+  if (state.tongueState !== TongueState.Idle) return FrogSprite.Tongue;
   if (state.frogState === FrogState.Jump) return FrogSprite.Jump;
   if (state.frogState === FrogState.Fall) return FrogSprite.Fall;
   return FrogSprite.Idle;
@@ -135,7 +157,7 @@ function drawPickups(
   }
 }
 
-function drawFrogAt(
+function drawFrogSprite(
   canvas: SkCanvas,
   state: GameState,
   assets: GameAssets,
@@ -162,19 +184,83 @@ function drawFrogAt(
   canvas.restore();
 }
 
+/**
+ * The tongue is drawn per frog copy and outside the squash & stretch transform:
+ * it hangs off the mouth, and stretching it with the body would read as rubber.
+ */
+function drawTongueFrom(
+  canvas: SkCanvas,
+  state: GameState,
+  s: RenderScratch,
+  frogDrawX: number,
+  screenY: number
+) {
+  'worklet';
+  if (state.tongueState === TongueState.Idle || state.tongueState === TongueState.Aiming) return;
+
+  const mouthX = frogDrawX + state.frogFacing * TONGUE_MOUTH_X;
+  const mouthY = screenY + TONGUE_MOUTH_Y;
+  // Offsetting the tip from this copy's frog keeps it attached across the seam.
+  const tipX = frogDrawX + wrappedDeltaX(state.frogX, state.tongueTipX);
+  const tipY = state.tongueTipY - state.camY;
+
+  canvas.drawLine(mouthX, mouthY, tipX, tipY, s.tonguePaint);
+  canvas.drawCircle(tipX, tipY, TONGUE_TIP_RADIUS, s.tongueTipPaint);
+}
+
 function drawFrog(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
   'worklet';
   const screenY = state.frogY - state.camY;
   const half = FROG_SPRITE_W / 2;
 
-  drawFrogAt(canvas, state, assets, s, state.frogX, screenY);
+  drawFrogSprite(canvas, state, assets, s, state.frogX, screenY);
+  drawTongueFrom(canvas, state, s, state.frogX, screenY);
 
   // Straddling the wrap seam: draw the other half so the frog is never sliced off.
   if (state.frogX < half) {
-    drawFrogAt(canvas, state, assets, s, state.frogX + DESIGN_WIDTH, screenY);
+    drawFrogSprite(canvas, state, assets, s, state.frogX + DESIGN_WIDTH, screenY);
+    drawTongueFrom(canvas, state, s, state.frogX + DESIGN_WIDTH, screenY);
   } else if (state.frogX > DESIGN_WIDTH - half) {
-    drawFrogAt(canvas, state, assets, s, state.frogX - DESIGN_WIDTH, screenY);
+    drawFrogSprite(canvas, state, assets, s, state.frogX - DESIGN_WIDTH, screenY);
+    drawTongueFrom(canvas, state, s, state.frogX - DESIGN_WIDTH, screenY);
   }
+}
+
+/**
+ * The ground aim: a ray toward the finger plus a ring around the anchor that
+ * would actually be grabbed.
+ *
+ * The ring is not decoration. Manual aiming is worse than automatic aiming
+ * unless the player can see what the game has decided they are pointing at.
+ */
+function drawTongueAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
+  'worklet';
+  if (state.tongueState !== TongueState.Aiming) return;
+
+  const mouthX = state.frogX + state.frogFacing * TONGUE_MOUTH_X;
+  const mouthY = state.frogY + TONGUE_MOUTH_Y - state.camY;
+
+  if (state.tongueAimTarget !== TongueTarget.None) {
+    const targetX = state.frogX + wrappedDeltaX(state.frogX, state.tongueAimX);
+    const targetY = state.tongueAimY - state.camY;
+    canvas.drawLine(mouthX, mouthY, targetX, targetY, s.aimPaint);
+    canvas.drawCircle(targetX, targetY, TONGUE_HIGHLIGHT_RADIUS, s.aimPaint);
+    return;
+  }
+
+  // Nothing in reach. Draw the reach limit toward the finger, so pointing at
+  // nothing looks like pointing at nothing rather than like a broken control.
+  const dx = wrappedDeltaX(state.frogX, state.touchX);
+  const dy = state.touchY + state.camY - state.frogY;
+  const length = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+  const reach = Math.min(length, TONGUE_RANGE);
+  canvas.drawLine(
+    mouthX,
+    mouthY,
+    mouthX + (dx / length) * reach,
+    mouthY + (dy / length) * reach,
+    s.aimPaint
+  );
 }
 
 function drawAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
@@ -231,6 +317,7 @@ export function drawScene(
   drawPlatforms(canvas, state, assets, scratch);
   drawPickups(canvas, state, assets, scratch, clock);
   drawFrog(canvas, state, assets, scratch);
+  drawTongueAim(canvas, state, scratch);
   drawAim(canvas, state, scratch);
 
   canvas.restore();

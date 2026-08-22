@@ -16,6 +16,7 @@ import {
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
 } from '@/game/constants';
+import { clearTongue } from '@/game/state';
 import {
   FrogState,
   PLATFORM_SPECS,
@@ -78,6 +79,7 @@ export function launchFrog(state: GameState) {
   state.grounded = false;
   state.groundedIndex = -1;
   state.frogState = FrogState.Jump;
+  state.tongueUsedThisFlight = false;
 
   if (state.aimDX > 0.05) state.frogFacing = 1;
   else if (state.aimDX < -0.05) state.frogFacing = -1;
@@ -86,9 +88,15 @@ export function launchFrog(state: GameState) {
   state.aimPower = 0;
 }
 
-function land(state: GameState, index: number, surfaceY: number) {
+/**
+ * Seats the frog on a platform. Shared by the collision sweep and by the tongue,
+ * so a grapple onto a bouncy platform bounces exactly like a landing does.
+ */
+export function land(state: GameState, index: number, surfaceY: number) {
   'worklet';
   state.frogY = surfaceY - FROG_HALF_H;
+  clearTongue(state);
+  state.tongueUsedThisFlight = false;
 
   if (PLATFORM_SPECS[state.platType[index]].behaviour === PlatformBehaviour.Bouncy) {
     // Bouncy platforms relaunch on contact rather than letting you aim again —
@@ -108,15 +116,13 @@ function land(state: GameState, index: number, surfaceY: number) {
 }
 
 /**
- * One fixed physics substep.
+ * Advances every moving platform, carrying a frog that is riding one.
  *
- * Moving platforms advance first so that a frog riding one is carried before its
- * own integration runs; otherwise it would visibly lag a frame behind its ride.
+ * Runs before the frog's own integration so a passenger never lags a frame
+ * behind its ride.
  */
-export function stepPhysics(state: GameState, dt: number) {
+export function stepMovingPlatforms(state: GameState, dt: number) {
   'worklet';
-  state.elapsed += dt;
-
   for (let i = 0; i < MAX_PLATFORMS; i += 1) {
     if (state.platAlive[i] === 0) continue;
     if (PLATFORM_SPECS[state.platType[i]].behaviour !== PlatformBehaviour.Moving) continue;
@@ -131,6 +137,11 @@ export function stepPhysics(state: GameState, dt: number) {
     }
   }
 
+}
+
+/** Gravity, integration and one-way platform collision for the frog itself. */
+export function stepFrog(state: GameState, dt: number) {
+  'worklet';
   if (state.frogState === FrogState.Dead) return;
 
   if (state.grounded) {

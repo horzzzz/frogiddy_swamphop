@@ -1,8 +1,9 @@
 import { FIXED_DT, MAX_FRAME_DT, MAX_SUBSTEPS } from '@/game/constants';
 import { updateCamera } from '@/game/camera';
-import { checkDeath, collectPickups, stepPhysics } from '@/game/physics';
+import { checkDeath, collectPickups, stepFrog, stepMovingPlatforms } from '@/game/physics';
 import { recycleBelow, spawnAhead } from '@/game/spawn';
-import { FrogState, type GameState } from '@/game/types';
+import { resolveTouch, stepTongue } from '@/game/tongue';
+import { FrogState, TongueState, type GameState } from '@/game/types';
 
 /**
  * Advances the world by one rendered frame.
@@ -23,8 +24,18 @@ export function advance(state: GameState, frameDt: number) {
 
   let steps = 0;
   while (state.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
-    stepPhysics(state, FIXED_DT);
+    state.elapsed += FIXED_DT;
+
+    // Order matters. Platforms move first so a passenger is carried before its
+    // own integration; the touch is resolved before the tongue so a hold that
+    // just matured fires on this step; and while the tongue is pulling it owns
+    // the frog's motion outright, so ordinary gravity is skipped.
+    stepMovingPlatforms(state, FIXED_DT);
+    resolveTouch(state);
+    stepTongue(state, FIXED_DT);
+    if (state.tongueState !== TongueState.Pulling) stepFrog(state, FIXED_DT);
     collectPickups(state);
+
     state.accumulator -= FIXED_DT;
     steps += 1;
   }

@@ -148,3 +148,64 @@ export const SQUASH_MAX_SQUASH = 0.16;
 
 /** Set true to draw the diagnostic readout over the game. */
 export const DEBUG_OVERLAY = false;
+
+// ---------------------------------------------------------------------------
+// Tongue
+// ---------------------------------------------------------------------------
+
+/**
+ * Reach of the tongue, deliberately shorter than the widest platform gap (222).
+ *
+ * Nothing in the game rewards speed yet, so a safe repeatable move would crowd
+ * out jumping if it could always reach the next ledge. Keeping the reach under
+ * the gap range means the tongue saves a jump that fell short — it does not
+ * replace the jump.
+ */
+export const TONGUE_RANGE = 170;
+export const TONGUE_EXTEND_SPEED = 1500;
+export const TONGUE_RETRACT_SPEED = 2000;
+export const TONGUE_PULL_SPEED = 1150;
+/** How close the tip has to get before it counts as having reached its anchor. */
+export const TONGUE_ARRIVE = 10;
+/** A hit costs more than a miss — being afraid to try is worse than spamming. */
+export const TONGUE_COOLDOWN_HIT = 0.9;
+export const TONGUE_COOLDOWN_MISS = 0.35;
+/** Platforms outrank pickups by this many design units when scoring targets. */
+export const TONGUE_PLATFORM_BONUS = 45;
+/** Mouth offset from the frog's centre. X is mirrored by facing. */
+export const TONGUE_MOUTH_X = 13;
+export const TONGUE_MOUTH_Y = -3;
+export const TONGUE_WIDTH = 7;
+export const TONGUE_TIP_RADIUS = 6;
+/** Radius of the ring drawn around the anchor a ground aim would grab. */
+export const TONGUE_HIGHLIGHT_RADIUS = 20;
+
+// ---------------------------------------------------------------------------
+// Touch
+// ---------------------------------------------------------------------------
+
+/**
+ * One finger carries three separate actions on the ground, told apart by how
+ * long it stays down and how far it travels.
+ *
+ * The generous hold and the small travel threshold together mean an ordinary
+ * jump drag — which moves well past 10 units inside a quarter second — is never
+ * mistaken for a tongue aim.
+ */
+export const HOLD_TO_AIM_TONGUE = 0.26;
+/**
+ * Both thresholds are `AIM_MIN_DRAG` on purpose, and must stay tied to it.
+ *
+ * If the drag threshold were lower, a touch could commit to a jump aim while
+ * still being too short for `applyAim` to accept — and it would be neither a
+ * jump nor a tap, so the flick would do nothing at all. Deriving both from the
+ * same number closes that gap by construction.
+ */
+export const DRAG_THRESHOLD = AIM_MIN_DRAG;
+export const TAP_MAX_MOVEMENT = AIM_MIN_DRAG;
+/** How long the attack pose stays up after a ground tap. Placeholder until enemies exist. */
+export const ATTACK_POSE_DURATION = 0.25;
+export const TONGUE_COLOR = '#E0524B';
+export const TONGUE_TIP_COLOR = '#F59089';
+export const TONGUE_AIM_COLOR = 'rgba(255, 255, 255, 0.8)';
+export const TONGUE_AIM_WIDTH = 3;

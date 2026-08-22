@@ -14,6 +14,39 @@ export const FrogState = {
 } as const;
 export type FrogStateValue = (typeof FrogState)[keyof typeof FrogState];
 
+export const TongueState = {
+  Idle: 0,
+  /** Ground only: the player is holding and pointing before firing. */
+  Aiming: 1,
+  Extending: 2,
+  Pulling: 3,
+  Retracting: 4,
+} as const;
+export type TongueStateValue = (typeof TongueState)[keyof typeof TongueState];
+
+export const TongueTarget = {
+  None: 0,
+  Platform: 1,
+  Pickup: 2,
+} as const;
+export type TongueTargetValue = (typeof TongueTarget)[keyof typeof TongueTarget];
+
+/**
+ * What the current touch has been resolved to. Resolution happens once per touch
+ * and is never revisited — a gesture that changed meaning mid-drag would be
+ * impossible to aim.
+ */
+export const TouchMode = {
+  None: 0,
+  /** Down, but not yet long enough or far enough to tell the three apart. */
+  Undecided: 1,
+  JumpAim: 2,
+  TongueAim: 3,
+  AirTongue: 4,
+  Attack: 5,
+} as const;
+export type TouchModeValue = (typeof TouchMode)[keyof typeof TouchMode];
+
 export const PlatformBehaviour = {
   Static: 0,
   Moving: 1,
@@ -146,6 +179,45 @@ export type GameState = {
   peakY: number;
   coins: number;
   crystals: number;
+
+  // Tongue.
+  tongueState: TongueStateValue;
+  /** Tip position in world space, wherever the tongue currently reaches to. */
+  tongueTipX: number;
+  tongueTipY: number;
+  tongueAnchorX: number;
+  tongueAnchorY: number;
+  tongueTarget: TongueTargetValue;
+  /** Pool index of whatever the anchor belongs to, or -1. */
+  tongueTargetIndex: number;
+  /** Anchor X relative to the platform's own X, so a moving platform carries it. */
+  tongueAnchorOffsetX: number;
+  tongueCooldown: number;
+  /** One successful grab per flight; without this the grapple chains forever. */
+  tongueUsedThisFlight: boolean;
+  /** Anchor a ground aim would currently grab, for the highlight ring. */
+  tongueAimTarget: TongueTargetValue;
+  tongueAimIndex: number;
+  tongueAimX: number;
+  tongueAimY: number;
+
+  // Raw touch facts. The gesture callbacks only record these; the simulation
+  // decides what they mean, because a motionless finger produces no gesture
+  // updates and a hold would otherwise never resolve.
+  touchActive: boolean;
+  touchMode: TouchModeValue;
+  /** Screen-space design units. World Y is this plus `camY` at the moment of use. */
+  touchStartX: number;
+  touchStartY: number;
+  touchX: number;
+  touchY: number;
+  /** Furthest the finger has strayed from where it landed. */
+  touchMoved: number;
+  /** Value of `elapsed` when the finger went down. */
+  touchStartedAt: number;
+
+  /** Counts down the attack pose after a ground tap. Placeholder until enemies exist. */
+  attackTimer: number;
 
   // Slingshot aim.
   aiming: boolean;
