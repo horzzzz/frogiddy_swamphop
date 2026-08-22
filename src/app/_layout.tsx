@@ -4,6 +4,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LoadingScreen } from '@/components/loading-screen';
@@ -32,16 +33,20 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <EconomyProvider>
-          {loading ? (
-            <LoadingScreen onDone={handleLoadingDone} />
-          ) : (
-            <Stack screenOptions={{ headerShown: false }} />
-          )}
-        </EconomyProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    // Required by react-native-gesture-handler; the game's slingshot Pan gesture
+    // will not receive touches without it, and expo-router does not add one.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <EconomyProvider>
+            {loading ? (
+              <LoadingScreen onDone={handleLoadingDone} />
+            ) : (
+              <Stack screenOptions={{ headerShown: false }} />
+            )}
+          </EconomyProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

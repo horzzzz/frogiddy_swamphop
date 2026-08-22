@@ -6,11 +6,13 @@ import { Menu } from '@/constants/theme';
 type CounterPillProps = {
   icon: number;
   value: string;
+  /** Menu pills are 130 wide; the in-game HUD uses the narrower 105 from the game frame. */
+  width?: number;
 };
 
-export function CounterPill({ icon, value }: CounterPillProps) {
+export function CounterPill({ icon, value, width }: CounterPillProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, width !== undefined && { width }]}>
       <Image
         source={require('@/assets/images/menu/panel-pill.webp')}
         style={StyleSheet.absoluteFill}

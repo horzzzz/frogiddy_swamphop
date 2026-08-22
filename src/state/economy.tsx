@@ -12,6 +12,10 @@ export const WHEEL_SPIN_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export type WalletData = {
   coins: number;
+  /** Crystals — the currency runs pay out alongside coins, spent on weapons. */
+  crystals: number;
+  /** Best height reached in a single run, in metres. Shown as "Highest" on the game HUD. */
+  bestHeight: number;
   lastDailyBonusAt: number | null;
   freeSpins: number;
   lastWheelSpinAt: number | null;
@@ -19,6 +23,8 @@ export type WalletData = {
 
 const INITIAL_WALLET: WalletData = {
   coins: 0,
+  crystals: 0,
+  bestHeight: 0,
   lastDailyBonusAt: null,
   freeSpins: 0,
   lastWheelSpinAt: null,
@@ -31,6 +37,8 @@ function reconcile(raw: unknown): WalletData {
 
   return {
     coins: Number.isFinite(saved.coins) ? Math.max(0, Math.floor(saved.coins as number)) : 0,
+    crystals: Number.isFinite(saved.crystals) ? Math.max(0, Math.floor(saved.crystals as number)) : 0,
+    bestHeight: Number.isFinite(saved.bestHeight) ? Math.max(0, saved.bestHeight as number) : 0,
     lastDailyBonusAt: typeof saved.lastDailyBonusAt === 'number' ? saved.lastDailyBonusAt : null,
     freeSpins: Number.isFinite(saved.freeSpins) ? Math.max(0, Math.floor(saved.freeSpins as number)) : 0,
     lastWheelSpinAt: typeof saved.lastWheelSpinAt === 'number' ? saved.lastWheelSpinAt : null,
@@ -41,6 +49,8 @@ type EconomyContextValue = {
   /** False until the save file has been read. */
   ready: boolean;
   coins: number;
+  crystals: number;
+  bestHeight: number;
   lastDailyBonusAt: number | null;
   freeSpins: number;
   lastWheelSpinAt: number | null;
@@ -49,6 +59,12 @@ type EconomyContextValue = {
   /** Returns false without changing the balance if it would go negative. */
   spendCoins: (amount: number) => boolean;
   claimDailyBonus: () => void;
+  /**
+   * Banks one finished run: currencies are added and the height record is raised
+   * if it was beaten. The game loop calls this once at the end of a run rather
+   * than per pickup, so a run never costs more than one React update.
+   */
+  recordRun: (coins: number, crystals: number, meters: number) => void;
   grantFreeSpins: (amount: number) => void;
   /**
    * Consumes one attempt: a free spin if available, otherwise starts the daily
@@ -117,6 +133,15 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const recordRun = useCallback((coins: number, crystals: number, meters: number) => {
+    setWallet((prev) => ({
+      ...prev,
+      coins: prev.coins + Math.max(0, Math.floor(coins)),
+      crystals: prev.crystals + Math.max(0, Math.floor(crystals)),
+      bestHeight: Math.max(prev.bestHeight, meters),
+    }));
+  }, []);
+
   const grantFreeSpins = useCallback((amount: number) => {
     if (amount <= 0) return;
     setWallet((prev) => ({ ...prev, freeSpins: prev.freeSpins + Math.floor(amount) }));
@@ -140,16 +165,19 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       coins: wallet.coins,
+      crystals: wallet.crystals,
+      bestHeight: wallet.bestHeight,
       lastDailyBonusAt: wallet.lastDailyBonusAt,
       freeSpins: wallet.freeSpins,
       lastWheelSpinAt: wallet.lastWheelSpinAt,
       addCoins,
       spendCoins,
       claimDailyBonus,
+      recordRun,
       grantFreeSpins,
       spinWheel,
     }),
-    [ready, wallet, addCoins, spendCoins, claimDailyBonus, grantFreeSpins, spinWheel]
+    [ready, wallet, addCoins, spendCoins, claimDailyBonus, recordRun, grantFreeSpins, spinWheel]
   );
 
   return <EconomyContext.Provider value={value}>{children}</EconomyContext.Provider>;

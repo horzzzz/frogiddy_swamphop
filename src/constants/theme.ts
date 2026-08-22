@@ -70,3 +70,14 @@ export const Menu = {
   overlay: 'rgba(0, 0, 0, 0.4)',
   textPrimary: '#FFFFFF',
 } as const;
+
+/** Design tokens for the in-game HUD, from the Figma "Game, start" frame. */
+export const Game = {
+  /** Counter pills are narrower in-game than in the menu. */
+  pillWidth: 105,
+  pillGap: 10,
+  iconSize: 36,
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255, 255, 255, 0.7)',
+  pauseBar: '#E8B455',
+} as const;

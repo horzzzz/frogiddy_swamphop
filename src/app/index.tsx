@@ -56,7 +56,7 @@ export default function Index() {
 
         <View style={styles.actions}>
           <View >
-            <MenuButton label="Play" />
+            <MenuButton label="Play" onPress={() => router.push('/game')} />
             <MenuButton
               label="Arsenal"
               locked

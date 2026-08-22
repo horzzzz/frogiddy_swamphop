@@ -1,0 +1,237 @@
+import type { SkCanvas, SkHostRect, SkImage, SkPaint } from '@shopify/react-native-skia';
+
+import {
+  DESIGN_WIDTH,
+  FIXED_DT,
+  FROG_SPRITE_H,
+  FROG_SPRITE_W,
+  GRAVITY,
+  JUMP_IMPULSE_MAX,
+  JUMP_IMPULSE_MIN,
+  AIR_DRAG_PER_SECOND,
+  MAX_FALL_SPEED,
+  MAX_PICKUPS,
+  MAX_PLATFORMS,
+  PICKUP_BOB,
+  PICKUP_BOB_SPEED,
+  PICKUP_HEIGHT,
+  SQUASH_MAX_SQUASH,
+  SQUASH_MAX_STRETCH,
+  SQUASH_REFERENCE_SPEED,
+  TRAJECTORY_DOTS,
+  TRAJECTORY_DOT_INTERVAL,
+  TRAJECTORY_DOT_RADIUS,
+} from '@/game/constants';
+import { wrapX } from '@/game/physics';
+import { FrogState, PICKUP_SPECS, PLATFORM_SPECS, type GameState } from '@/game/types';
+
+/** An image plus a preallocated rect covering all of it, so no `width()` call happens per frame. */
+export type Sprite = {
+  image: SkImage;
+  src: SkHostRect;
+};
+
+export type GameAssets = {
+  bg: Sprite;
+  /** Indexed by FrogSprite. */
+  frog: Sprite[];
+  /** Indexed by PlatformType. */
+  platforms: Sprite[];
+  /** Indexed by PickupType. */
+  pickups: Sprite[];
+};
+
+/** Indices into `GameAssets.frog`; must match the load order in use-game-assets. */
+export const FrogSprite = {
+  Idle: 0,
+  Jump: 1,
+  Fall: 2,
+  WallLeft: 3,
+  WallRight: 4,
+  Tongue: 5,
+  Attack: 6,
+  Hit: 7,
+  Dead: 8,
+  BouncyHit: 9,
+} as const;
+
+/**
+ * Mutable scratch shared by every draw call. Allocating a rect or a paint inside
+ * the frame loop would hand the GC work sixty times a second; these are built
+ * once and rewritten in place via `setXYWH`.
+ */
+export type RenderScratch = {
+  paint: SkPaint;
+  dotPaint: SkPaint;
+  dst: SkHostRect;
+  /** Only the background needs a variable source rect, for its cover crop. */
+  src: SkHostRect;
+};
+
+function frogSpriteFor(state: GameState): number {
+  'worklet';
+  if (state.frogState === FrogState.Dead) return FrogSprite.Dead;
+  if (state.frogState === FrogState.Jump) return FrogSprite.Jump;
+  if (state.frogState === FrogState.Fall) return FrogSprite.Fall;
+  return FrogSprite.Idle;
+}
+
+function drawBackground(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
+  'worklet';
+  // The background does not scroll. It is a single painted scene with no seamless
+  // vertical join, so tiling it can only ever show a hard edge — better a fixed
+  // backdrop than a visible seam once per screen.
+  //
+  // It is cover-cropped rather than stretched: the source rect is narrowed or
+  // shortened to match the device's aspect, so the art keeps its proportions on
+  // any screen.
+  const image = assets.bg.image;
+  const imageW = assets.bg.src.width;
+  const imageH = assets.bg.src.height;
+
+  const scale = Math.max(DESIGN_WIDTH / imageW, state.viewH / imageH);
+  const cropW = DESIGN_WIDTH / scale;
+  const cropH = state.viewH / scale;
+
+  s.src.setXYWH((imageW - cropW) / 2, (imageH - cropH) / 2, cropW, cropH);
+  s.dst.setXYWH(0, 0, DESIGN_WIDTH, state.viewH);
+  canvas.drawImageRect(image, s.src, s.dst, s.paint);
+}
+
+function drawPlatforms(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
+  'worklet';
+  for (let i = 0; i < MAX_PLATFORMS; i += 1) {
+    if (state.platAlive[i] === 0) continue;
+
+    const spec = PLATFORM_SPECS[state.platType[i]];
+    const screenY = state.platY[i] - state.camY;
+    if (screenY > state.viewH || screenY + spec.h < 0) continue;
+
+    const sprite = assets.platforms[state.platType[i]];
+    s.dst.setXYWH(state.platX[i], screenY, spec.w, spec.h);
+    canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.paint);
+  }
+}
+
+function drawPickups(
+  canvas: SkCanvas,
+  state: GameState,
+  assets: GameAssets,
+  s: RenderScratch,
+  clock: number
+) {
+  'worklet';
+  for (let i = 0; i < MAX_PICKUPS; i += 1) {
+    if (state.pickAlive[i] === 0) continue;
+
+    const screenY = state.pickY[i] - state.camY;
+    if (screenY > state.viewH + PICKUP_HEIGHT || screenY < -PICKUP_HEIGHT) continue;
+
+    const spec = PICKUP_SPECS[state.pickType[i]];
+    const bob = Math.sin(clock * PICKUP_BOB_SPEED + state.pickPhase[i]) * PICKUP_BOB;
+    const sprite = assets.pickups[state.pickType[i]];
+    s.dst.setXYWH(state.pickX[i] - spec.w / 2, screenY - spec.h / 2 + bob, spec.w, spec.h);
+    canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.paint);
+  }
+}
+
+function drawFrogAt(
+  canvas: SkCanvas,
+  state: GameState,
+  assets: GameAssets,
+  s: RenderScratch,
+  x: number,
+  screenY: number
+) {
+  'worklet';
+  // Squash & stretch from vertical speed: stretched while climbing, compressed
+  // while falling fast. Area is preserved so the frog never looks like it gained
+  // or lost mass. This non-uniform scale is exactly what SkRSXform — and so the
+  // declarative <Atlas> — cannot express, and why this renderer is imperative.
+  const ratio = Math.max(-1, Math.min(1, state.frogVY / SQUASH_REFERENCE_SPEED));
+  const scaleY = ratio < 0 ? 1 - ratio * SQUASH_MAX_STRETCH : 1 - ratio * SQUASH_MAX_SQUASH;
+  const scaleX = 1 / scaleY;
+
+  const sprite = assets.frog[frogSpriteFor(state)];
+
+  canvas.save();
+  canvas.translate(x, screenY);
+  canvas.scale(state.frogFacing * scaleX, scaleY);
+  s.dst.setXYWH(-FROG_SPRITE_W / 2, -FROG_SPRITE_H / 2, FROG_SPRITE_W, FROG_SPRITE_H);
+  canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.paint);
+  canvas.restore();
+}
+
+function drawFrog(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
+  'worklet';
+  const screenY = state.frogY - state.camY;
+  const half = FROG_SPRITE_W / 2;
+
+  drawFrogAt(canvas, state, assets, s, state.frogX, screenY);
+
+  // Straddling the wrap seam: draw the other half so the frog is never sliced off.
+  if (state.frogX < half) {
+    drawFrogAt(canvas, state, assets, s, state.frogX + DESIGN_WIDTH, screenY);
+  } else if (state.frogX > DESIGN_WIDTH - half) {
+    drawFrogAt(canvas, state, assets, s, state.frogX - DESIGN_WIDTH, screenY);
+  }
+}
+
+function drawAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
+  'worklet';
+  if (!state.aiming || state.aimPower <= 0) return;
+
+  // The preview runs the same integrator, at the same fixed step, as the real
+  // simulation — so the dotted arc is not an approximation of the jump, it is
+  // the jump.
+  const impulse = JUMP_IMPULSE_MIN + (JUMP_IMPULSE_MAX - JUMP_IMPULSE_MIN) * state.aimPower;
+  let vx = state.aimDX * impulse;
+  let vy = state.aimDY * impulse;
+  let x = state.frogX;
+  let y = state.frogY - state.camY;
+
+  const substeps = Math.max(1, Math.round(TRAJECTORY_DOT_INTERVAL / FIXED_DT));
+
+  for (let dot = 0; dot < TRAJECTORY_DOTS; dot += 1) {
+    for (let k = 0; k < substeps; k += 1) {
+      vy = Math.min(vy + GRAVITY * FIXED_DT, MAX_FALL_SPEED);
+      vx -= vx * AIR_DRAG_PER_SECOND * FIXED_DT;
+      x = wrapX(x + vx * FIXED_DT);
+      y += vy * FIXED_DT;
+    }
+    if (y > state.viewH) break;
+
+    // Dots fade along the arc so the near end reads as "now" and the far end as
+    // a guess the player should not over-trust.
+    s.dotPaint.setAlphaf(0.85 * (1 - dot / TRAJECTORY_DOTS));
+    canvas.drawCircle(x, y, TRAJECTORY_DOT_RADIUS, s.dotPaint);
+  }
+}
+
+/**
+ * Draws one complete frame. Called from a worklet; touches nothing outside its arguments.
+ *
+ * `clock` is the simulation time the caller read to trigger this redraw. Taking it
+ * as a parameter rather than reading `state.elapsed` keeps the dependency that
+ * drives the render loop visible at the call site, where it cannot be tidied away.
+ */
+export function drawScene(
+  canvas: SkCanvas,
+  state: GameState,
+  assets: GameAssets,
+  scratch: RenderScratch,
+  screenScale: number,
+  clock: number
+) {
+  'worklet';
+  canvas.save();
+  canvas.scale(screenScale, screenScale);
+
+  drawBackground(canvas, state, assets, scratch);
+  drawPlatforms(canvas, state, assets, scratch);
+  drawPickups(canvas, state, assets, scratch, clock);
+  drawFrog(canvas, state, assets, scratch);
+  drawAim(canvas, state, scratch);
+
+  canvas.restore();
+}
