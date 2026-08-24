@@ -39,7 +39,7 @@ export function TopBar({ title, onBack }: TopBarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 88,
+    height: 58,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -31,6 +31,8 @@ export type WalletData = {
   equippedWeapon: string | null;
   /** True once the player has ever collected crystals — unlocks the Arsenal for good, even if spent back to 0. */
   crystalsFound: boolean;
+  /** True once the player has ever collected coins — unlocks Frogenetics for good, even if spent back to 0. */
+  coinsFound: boolean;
 };
 
 const INITIAL_WALLET: WalletData = {
@@ -43,6 +45,7 @@ const INITIAL_WALLET: WalletData = {
   ownedWeapons: [],
   equippedWeapon: null,
   crystalsFound: false,
+  coinsFound: false,
 };
 
 /** Priciest owned weapon, since price is the reach ladder — or null if none owned. */
@@ -75,6 +78,7 @@ function reconcile(raw: unknown): WalletData {
     ownedWeapons,
     equippedWeapon,
     crystalsFound: saved.crystalsFound === true || (Number.isFinite(saved.crystals) && (saved.crystals as number) > 0),
+    coinsFound: saved.coinsFound === true || (Number.isFinite(saved.coins) && (saved.coins as number) > 0),
   };
 }
 
@@ -90,6 +94,7 @@ type EconomyContextValue = {
   ownedWeapons: string[];
   equippedWeapon: string | null;
   crystalsFound: boolean;
+  coinsFound: boolean;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
   /** Returns false without changing the balance if it would go negative. */
@@ -157,7 +162,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
 
   const addCoins = useCallback((amount: number) => {
     if (amount <= 0) return;
-    setWallet((prev) => ({ ...prev, coins: prev.coins + Math.floor(amount) }));
+    setWallet((prev) => ({ ...prev, coins: prev.coins + Math.floor(amount), coinsFound: true }));
   }, []);
 
   const spendCoins = useCallback((amount: number) => {
@@ -179,13 +184,15 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordRun = useCallback((coins: number, crystals: number, meters: number) => {
+    const gainedCoins = Math.max(0, Math.floor(coins));
     const gainedCrystals = Math.max(0, Math.floor(crystals));
     setWallet((prev) => ({
       ...prev,
-      coins: prev.coins + Math.max(0, Math.floor(coins)),
+      coins: prev.coins + gainedCoins,
       crystals: prev.crystals + gainedCrystals,
       bestHeight: Math.max(prev.bestHeight, meters),
       crystalsFound: prev.crystalsFound || gainedCrystals > 0,
+      coinsFound: prev.coinsFound || gainedCoins > 0,
     }));
   }, []);
 
@@ -239,6 +246,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       ownedWeapons: wallet.ownedWeapons,
       equippedWeapon: wallet.equippedWeapon,
       crystalsFound: wallet.crystalsFound,
+      coinsFound: wallet.coinsFound,
       addCoins,
       spendCoins,
       claimDailyBonus,

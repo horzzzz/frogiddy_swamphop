@@ -15,7 +15,7 @@ import { useEconomy } from '@/state/economy';
 
 export default function Index() {
   const router = useRouter();
-  const { coins, crystals, crystalsFound } = useEconomy();
+  const { coins, crystals, crystalsFound, coinsFound } = useEconomy();
   const [showDailyBonus, setShowDailyBonus] = useState(false);
 
   return (
@@ -67,12 +67,16 @@ export default function Index() {
                 hintIcon={require('@/assets/images/menu/icon-blu.webp')}
               />
             )}
-            <MenuButton
-              label="Frogenetics"
-              locked
-              hint="Find a Eye at 5 meters"
-              hintIcon={require('@/assets/images/menu/icon-eye.webp')}
-            />
+            {coinsFound ? (
+              <MenuButton label="Frogenetics" onPress={() => router.push('/frogenetics')} />
+            ) : (
+              <MenuButton
+                label="Frogenetics"
+                locked
+                hint="Find a coin"
+                hintIcon={require('@/assets/images/menu/icon-coin.webp')}
+              />
+            )}
           </View>
 
           <View style={styles.tileRow}>
