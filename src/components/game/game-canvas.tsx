@@ -18,6 +18,8 @@ import {
 } from 'react-native-reanimated';
 
 import {
+  ATTACK_RANGE_X,
+  ATTACK_RANGE_Y,
   CAMERA_ANCHOR,
   DESIGN_WIDTH,
   PIXELS_PER_METER,
@@ -33,9 +35,12 @@ import { createGameState, heightInMeters, resetRun } from '@/game/state';
 import { advance } from '@/game/step';
 import { FrogState, TouchMode } from '@/game/types';
 import { useGameAssets } from '@/hooks/use-game-assets';
+import type { Weapon } from '@/constants/weapons';
 
 /** How often run totals are pushed to the React HUD. Never once per frame. */
 const STATS_INTERVAL_MS = 100;
+/** Bare-fisted attack pose — used whenever no Arsenal weapon is equipped. */
+const DEFAULT_ATTACK_SPRITE = require('@/assets/images/game/frog/attack.png');
 
 export type GameCanvasHandle = {
   /** Restarts the run in place, without remounting the canvas or reloading textures. */
@@ -51,16 +56,21 @@ export type RunStats = {
 
 type GameCanvasProps = {
   paused: boolean;
+  /** Currently equipped Arsenal weapon, or null for the unarmed default. */
+  weapon: Weapon | null;
   onStats: (stats: RunStats) => void;
   onGameOver: (stats: RunStats) => void;
 };
 
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { paused, onStats, onGameOver },
+  { paused, weapon, onStats, onGameOver },
   ref
 ) {
   const { width, height } = useWindowDimensions();
-  const assets = useGameAssets();
+  const attackSprite = weapon?.attackSprite ?? DEFAULT_ATTACK_SPRITE;
+  const assets = useGameAssets(attackSprite);
+  const attackRangeX = weapon?.rangeX ?? ATTACK_RANGE_X;
+  const attackRangeY = weapon?.rangeY ?? ATTACK_RANGE_Y;
 
   // Scaling is driven by width so the horizontal wrap matches the 430-wide
   // mockups exactly; the visible height in design units then follows from the
@@ -134,6 +144,18 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
       world.camY = world.frogY - visibleHeight * CAMERA_ANCHOR;
     })(viewH);
   }, [state, viewH]);
+
+  // Screen setup, not run state — mirrors the viewH effect above. `resetRun`
+  // deliberately leaves these alone, so switching weapons mid-run (impossible
+  // today, since the Arsenal is a different screen) wouldn't need a restart.
+  useEffect(() => {
+    runOnUI((rangeX: number, rangeY: number) => {
+      'worklet';
+      const world = state.value;
+      world.attackRangeX = rangeX;
+      world.attackRangeY = rangeY;
+    })(attackRangeX, attackRangeY);
+  }, [state, attackRangeX, attackRangeY]);
 
   const frameCallback = useFrameCallback((info) => {
     'worklet';

@@ -1,4 +1,6 @@
 import {
+  ATTACK_RANGE_X,
+  ATTACK_RANGE_Y,
   CAMERA_ANCHOR,
   DESIGN_HEIGHT,
   DESIGN_WIDTH,
@@ -179,6 +181,8 @@ export function createGameState(): GameState {
     touchStartedAt: 0,
 
     attackTimer: 0,
+    attackRangeX: ATTACK_RANGE_X,
+    attackRangeY: ATTACK_RANGE_Y,
 
     aiming: false,
     aimDX: 0,

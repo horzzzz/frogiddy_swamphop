@@ -266,6 +266,13 @@ export type GameState = {
 
   /** Counts down the attack pose after a ground tap. */
   attackTimer: number;
+  /**
+   * Half-width/half-height of the ground attack's hit box. Screen setup, not
+   * run state — set from the equipped Arsenal weapon and left alone by
+   * `resetRun`, the same way `viewH` is.
+   */
+  attackRangeX: number;
+  attackRangeY: number;
 
   // Slingshot aim.
   aiming: boolean;

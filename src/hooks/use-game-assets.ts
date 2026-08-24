@@ -31,8 +31,14 @@ function collect(images: (SkImage | null)[]): Sprite[] | null {
  * Textures are kept as individual images rather than one packed sheet. The
  * renderer only ever sees `{ image, src }`, so moving to a real atlas later is a
  * change to this file alone.
+ *
+ * `attackSprite` is the equipped Arsenal weapon's attack-pose sprite (a
+ * `require()` number, from `Weapon.attackSprite` — see constants/weapons.ts),
+ * or the bare-fisted default when nothing is equipped. `useImageAsTexture`
+ * reloads whenever its source changes (its `useEffect` is keyed on it), so
+ * swapping weapons swaps exactly this one texture — nothing else re-uploads.
  */
-export function useGameAssets(): SharedValue<GameAssets | null> {
+export function useGameAssets(attackSprite: number): SharedValue<GameAssets | null> {
   const bg = useImageAsTexture(require('@/assets/images/game/bg.png'));
 
   const frogIdle = useImageAsTexture(require('@/assets/images/game/frog/idle.png'));
@@ -41,7 +47,7 @@ export function useGameAssets(): SharedValue<GameAssets | null> {
   const frogWallLeft = useImageAsTexture(require('@/assets/images/game/frog/wall-left.png'));
   const frogWallRight = useImageAsTexture(require('@/assets/images/game/frog/wall-right.png'));
   const frogTongue = useImageAsTexture(require('@/assets/images/game/frog/tongue.png'));
-  const frogAttack = useImageAsTexture(require('@/assets/images/game/frog/attack.png'));
+  const frogAttack = useImageAsTexture(attackSprite);
   const frogHit = useImageAsTexture(require('@/assets/images/game/frog/hit.png'));
   const frogDead = useImageAsTexture(require('@/assets/images/game/frog/dead.png'));
   const frogBouncyHit = useImageAsTexture(require('@/assets/images/game/frog/bouncy-hit.png'));

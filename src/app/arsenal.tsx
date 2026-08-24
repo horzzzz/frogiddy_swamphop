@@ -12,7 +12,7 @@ import { useEconomy } from '@/state/economy';
 
 export default function Arsenal() {
   const router = useRouter();
-  const { crystals, ownedWeapons, buyWeapon } = useEconomy();
+  const { crystals, ownedWeapons, equippedWeapon, buyWeapon, equipWeapon } = useEconomy();
 
   return (
     <SwampBackground>
@@ -25,14 +25,19 @@ export default function Arsenal() {
           <ScrollView contentContainerStyle={styles.panelContent} showsVerticalScrollIndicator={false}>
             {WEAPONS.map((weapon) => {
               const owned = ownedWeapons.includes(weapon.id);
+              const equipped = equippedWeapon === weapon.id;
               return (
                 <WeaponCard
                   key={weapon.id}
                   weapon={weapon}
                   owned={owned}
+                  equipped={equipped}
                   canAfford={crystals >= weapon.price}
                   onBuy={() => {
                     if (!owned) buyWeapon(weapon.id, weapon.price);
+                  }}
+                  onEquip={() => {
+                    if (owned && !equipped) equipWeapon(weapon.id);
                   }}
                 />
               );

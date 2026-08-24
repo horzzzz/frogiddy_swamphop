@@ -163,7 +163,14 @@ export const ENEMY_DEATH_LINGER = 0.35;
 /** Radius an idle enemy watches for a grounded frog to aggro onto. */
 export const ENEMY_AGGRO_RANGE_X = 90;
 export const ENEMY_AGGRO_RANGE_Y = 60;
-/** Sword reach: how close an enemy has to be for a ground tap to hit it. */
+/**
+ * Unarmed reach: how close an enemy has to be for a ground tap to hit it, with
+ * no Arsenal weapon equipped. Deliberately *shorter* than ENEMY_AGGRO_RANGE_X
+ * above (90) — the frog's bare fist can't out-reach an enemy's attack, so
+ * fighting unarmed always means trading a hit. The Arsenal's whole reason to
+ * exist is closing that gap; every purchasable weapon's rangeX in
+ * constants/weapons.ts starts past 90.
+ */
 export const ATTACK_RANGE_X = 70;
 export const ATTACK_RANGE_Y = 50;
 /** Bounce off a stomp kill — a small hop, well under a minimum jump (650), just

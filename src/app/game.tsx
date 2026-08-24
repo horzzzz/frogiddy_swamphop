@@ -8,6 +8,7 @@ import { GameHud } from '@/components/game/game-hud';
 import { MenuButton } from '@/components/menu/menu-button';
 import { GameModal } from '@/components/modal/game-modal';
 import { Game } from '@/constants/theme';
+import { WEAPONS } from '@/constants/weapons';
 import { MAX_LIVES } from '@/game/constants';
 import { useEconomy } from '@/state/economy';
 
@@ -15,7 +16,8 @@ const EMPTY_RUN: RunStats = { meters: 0, coins: 0, crystals: 0, lives: MAX_LIVES
 
 export default function GameScreen() {
   const router = useRouter();
-  const { bestHeight, recordRun } = useEconomy();
+  const { bestHeight, recordRun, equippedWeapon } = useEconomy();
+  const weapon = WEAPONS.find((candidate) => candidate.id === equippedWeapon) ?? null;
 
   const canvas = useRef<GameCanvasHandle>(null);
   const [stats, setStats] = useState<RunStats>(EMPTY_RUN);
@@ -48,6 +50,7 @@ export default function GameScreen() {
       <GameCanvas
         ref={canvas}
         paused={paused || gameOver}
+        weapon={weapon}
         onStats={setStats}
         onGameOver={handleGameOver}
       />

@@ -1,7 +1,5 @@
 import {
   ATTACK_POSE_DURATION,
-  ATTACK_RANGE_X,
-  ATTACK_RANGE_Y,
   DRAG_THRESHOLD,
   FROG_HALF_H,
   HOLD_TO_AIM_TONGUE,
@@ -184,7 +182,7 @@ export function triggerAttack(state: GameState) {
 
     const dx = wrappedDeltaX(state.frogX, state.enemyX[i]);
     const dy = state.enemyY[i] - state.frogY;
-    if (Math.abs(dx) > ATTACK_RANGE_X || Math.abs(dy) > ATTACK_RANGE_Y) continue;
+    if (Math.abs(dx) > state.attackRangeX || Math.abs(dy) > state.attackRangeY) continue;
 
     const distSq = dx * dx + dy * dy;
     if (distSq < nearestDistSq) {
@@ -202,7 +200,7 @@ export function triggerAttack(state: GameState) {
 
     const dx = wrappedDeltaX(state.frogX, state.enemyX[i]);
     const dy = state.enemyY[i] - state.frogY;
-    if (Math.abs(dx) > ATTACK_RANGE_X || Math.abs(dy) > ATTACK_RANGE_Y) continue;
+    if (Math.abs(dx) > state.attackRangeX || Math.abs(dy) > state.attackRangeY) continue;
     // Enemies dead centre (dx === 0) count as on whichever side the swing faces.
     if (dx !== 0 && Math.sign(dx) !== state.frogFacing) continue;
 

@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import { WEAPONS } from '@/constants/weapons';
+
 const STORAGE_KEY = 'frogiddy-swamphop/wallet/v1';
 
 export const DAILY_BONUS_AMOUNT = 1000;
@@ -21,6 +23,12 @@ export type WalletData = {
   lastWheelSpinAt: number | null;
   /** Ids of weapons bought in the Arsenal. */
   ownedWeapons: string[];
+  /**
+   * Which owned weapon's reach applies in a run, or null for the unarmed
+   * default. Always one of `ownedWeapons` — enforced in `reconcile` and in
+   * every setter below, rather than trusted at the read site.
+   */
+  equippedWeapon: string | null;
   /** True once the player has ever collected crystals — unlocks the Arsenal for good, even if spent back to 0. */
   crystalsFound: boolean;
 };
@@ -33,13 +41,29 @@ const INITIAL_WALLET: WalletData = {
   freeSpins: 0,
   lastWheelSpinAt: null,
   ownedWeapons: [],
+  equippedWeapon: null,
   crystalsFound: false,
 };
+
+/** Priciest owned weapon, since price is the reach ladder — or null if none owned. */
+function bestOwnedWeapon(ownedWeapons: string[]): string | null {
+  const owned = WEAPONS.filter((weapon) => ownedWeapons.includes(weapon.id));
+  if (owned.length === 0) return null;
+  return owned.reduce((best, weapon) => (weapon.price > best.price ? weapon : best)).id;
+}
 
 /** Merges a persisted blob into the current shape so older saves keep working. */
 function reconcile(raw: unknown): WalletData {
   if (!raw || typeof raw !== 'object') return INITIAL_WALLET;
   const saved = raw as Partial<WalletData>;
+
+  const ownedWeapons = Array.isArray(saved.ownedWeapons)
+    ? saved.ownedWeapons.filter((id): id is string => typeof id === 'string')
+    : [];
+  const equippedWeapon =
+    typeof saved.equippedWeapon === 'string' && ownedWeapons.includes(saved.equippedWeapon)
+      ? saved.equippedWeapon
+      : bestOwnedWeapon(ownedWeapons);
 
   return {
     coins: Number.isFinite(saved.coins) ? Math.max(0, Math.floor(saved.coins as number)) : 0,
@@ -48,9 +72,8 @@ function reconcile(raw: unknown): WalletData {
     lastDailyBonusAt: typeof saved.lastDailyBonusAt === 'number' ? saved.lastDailyBonusAt : null,
     freeSpins: Number.isFinite(saved.freeSpins) ? Math.max(0, Math.floor(saved.freeSpins as number)) : 0,
     lastWheelSpinAt: typeof saved.lastWheelSpinAt === 'number' ? saved.lastWheelSpinAt : null,
-    ownedWeapons: Array.isArray(saved.ownedWeapons)
-      ? saved.ownedWeapons.filter((id): id is string => typeof id === 'string')
-      : [],
+    ownedWeapons,
+    equippedWeapon,
     crystalsFound: saved.crystalsFound === true || (Number.isFinite(saved.crystals) && (saved.crystals as number) > 0),
   };
 }
@@ -65,6 +88,7 @@ type EconomyContextValue = {
   freeSpins: number;
   lastWheelSpinAt: number | null;
   ownedWeapons: string[];
+  equippedWeapon: string | null;
   crystalsFound: boolean;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
@@ -84,10 +108,14 @@ type EconomyContextValue = {
    */
   spinWheel: () => boolean;
   /**
-   * Buys one Arsenal weapon with crystals. Returns false without changing
-   * anything if it's already owned or the balance is too low.
+   * Buys one Arsenal weapon with crystals and equips it immediately — a
+   * purchase you just made is the one you presumably want to use. Returns
+   * false without changing anything if it's already owned or the balance is
+   * too low.
    */
   buyWeapon: (id: string, price: number) => boolean;
+  /** Switches which owned weapon applies in a run. No-ops if `id` isn't owned. */
+  equipWeapon: (id: string) => void;
 };
 
 const EconomyContext = createContext<EconomyContextValue | null>(null);
@@ -185,9 +213,18 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     setWallet((prev) => {
       if (prev.ownedWeapons.includes(id) || prev.crystals < price) return prev;
       ok = true;
-      return { ...prev, crystals: prev.crystals - price, ownedWeapons: [...prev.ownedWeapons, id] };
+      return {
+        ...prev,
+        crystals: prev.crystals - price,
+        ownedWeapons: [...prev.ownedWeapons, id],
+        equippedWeapon: id,
+      };
     });
     return ok;
+  }, []);
+
+  const equipWeapon = useCallback((id: string) => {
+    setWallet((prev) => (prev.ownedWeapons.includes(id) ? { ...prev, equippedWeapon: id } : prev));
   }, []);
 
   const value = useMemo<EconomyContextValue>(
@@ -200,6 +237,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       freeSpins: wallet.freeSpins,
       lastWheelSpinAt: wallet.lastWheelSpinAt,
       ownedWeapons: wallet.ownedWeapons,
+      equippedWeapon: wallet.equippedWeapon,
       crystalsFound: wallet.crystalsFound,
       addCoins,
       spendCoins,
@@ -208,6 +246,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       grantFreeSpins,
       spinWheel,
       buyWeapon,
+      equipWeapon,
     }),
     [
       ready,
@@ -219,6 +258,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       grantFreeSpins,
       spinWheel,
       buyWeapon,
+      equipWeapon,
     ]
   );
 
