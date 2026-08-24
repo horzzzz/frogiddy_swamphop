@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
@@ -23,50 +23,58 @@ export function GameModal({ visible, title, children, onClose, dismissable = tru
   if (!visible) return null;
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(240)} style={styles.overlay}>
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={
-          dismissable
-            ? () => {
-                playSfx('click');
-                onClose();
-              }
-            : undefined
-        }
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
-      <Animated.View
-        entering={ZoomIn.springify().damping(20).stiffness(180).overshootClamping(1)}
-        exiting={ZoomOut.duration(240)}
-        style={styles.card}>
-        <Image
-          source={require('@/assets/images/modal/panel.webp')}
+    // A dedicated Android window, not just a top-of-tree view: the game screen's
+    // opaque Skia canvas renders on its own SurfaceView compositor layer, which
+    // React views added on top of it (this modal) never actually land on. Modal
+    // sidesteps that by giving the dialog its own window above everything.
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={dismissable ? onClose : () => {}}>
+      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(240)} style={styles.overlay}>
+        <Pressable
           style={StyleSheet.absoluteFill}
-          contentFit="fill"
+          onPress={
+            dismissable
+              ? () => {
+                  playSfx('click');
+                  onClose();
+                }
+              : undefined
+          }
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
         />
-        <View style={styles.content}>
-          {title && <Text style={styles.title}>{title.toUpperCase()}</Text>}
-          {children}
-        </View>
+        <Animated.View
+          entering={ZoomIn.springify().damping(20).stiffness(180).overshootClamping(1)}
+          exiting={ZoomOut.duration(240)}
+          style={styles.card}>
+          <Image
+            source={require('@/assets/images/modal/panel.webp')}
+            style={StyleSheet.absoluteFill}
+            contentFit="fill"
+          />
+          <View style={styles.content}>
+            {title && <Text style={styles.title}>{title.toUpperCase()}</Text>}
+            {children}
+          </View>
+        </Animated.View>
       </Animated.View>
-    </Animated.View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    // Modal's own container already fills the window; no absolute positioning needed here.
+    flex: 1,
     backgroundColor: Menu.overlay,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    zIndex: 10,
   },
   card: {
     width: '100%',
