@@ -16,7 +16,7 @@ import { useEconomy } from '@/state/economy';
 
 export default function Index() {
   const router = useRouter();
-  const { coins, crystals, crystalsFound, coinsFound } = useEconomy();
+  const { coins, crystals, crystalsFound, coinsFound, tutorialSeen } = useEconomy();
   const [showDailyBonus, setShowDailyBonus] = useState(false);
 
   return (
@@ -59,7 +59,10 @@ export default function Index() {
 
         <View style={styles.actions}>
           <View >
-            <MenuButton label="Play" onPress={() => router.push('/game')} />
+            <MenuButton
+              label="Play"
+              onPress={() => router.push(tutorialSeen ? '/game' : '/tutorial')}
+            />
             {crystalsFound ? (
               <MenuButton label="Arsenal" onPress={() => router.push('/arsenal')} />
             ) : (

@@ -42,6 +42,8 @@ export type WalletData = {
   coinsFound: boolean;
   /** Level 0…FROGENETICS_MAX_LEVEL bought for each Frogenetics stat. */
   upgrades: FrogeneticsLevels;
+  /** True once the player has completed the tutorial — Play skips straight to the game after that. */
+  tutorialSeen: boolean;
 };
 
 const INITIAL_WALLET: WalletData = {
@@ -56,6 +58,7 @@ const INITIAL_WALLET: WalletData = {
   crystalsFound: false,
   coinsFound: false,
   upgrades: DEFAULT_FROGENETICS_LEVELS,
+  tutorialSeen: false,
 };
 
 /** Clamps a persisted upgrade level into 0…FROGENETICS_MAX_LEVEL, defaulting to 0. */
@@ -103,6 +106,7 @@ function reconcile(raw: unknown): WalletData {
     crystalsFound: saved.crystalsFound === true || (Number.isFinite(saved.crystals) && (saved.crystals as number) > 0),
     coinsFound: saved.coinsFound === true || (Number.isFinite(saved.coins) && (saved.coins as number) > 0),
     upgrades,
+    tutorialSeen: saved.tutorialSeen === true,
   };
 }
 
@@ -120,6 +124,7 @@ type EconomyContextValue = {
   crystalsFound: boolean;
   coinsFound: boolean;
   upgrades: FrogeneticsLevels;
+  tutorialSeen: boolean;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
   /** Returns false without changing the balance if it would go negative. */
@@ -152,6 +157,8 @@ type EconomyContextValue = {
    * is too low.
    */
   buyUpgrade: (id: FrogeneticsId) => boolean;
+  /** Marks the tutorial as completed, so Play skips straight to the game from now on. */
+  markTutorialSeen: () => void;
 };
 
 const EconomyContext = createContext<EconomyContextValue | null>(null);
@@ -265,6 +272,10 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     setWallet((prev) => (prev.ownedWeapons.includes(id) ? { ...prev, equippedWeapon: id } : prev));
   }, []);
 
+  const markTutorialSeen = useCallback(() => {
+    setWallet((prev) => (prev.tutorialSeen ? prev : { ...prev, tutorialSeen: true }));
+  }, []);
+
   const buyUpgrade = useCallback((id: FrogeneticsId) => {
     let ok = false;
     setWallet((prev) => {
@@ -296,6 +307,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       crystalsFound: wallet.crystalsFound,
       coinsFound: wallet.coinsFound,
       upgrades: wallet.upgrades,
+      tutorialSeen: wallet.tutorialSeen,
       addCoins,
       spendCoins,
       claimDailyBonus,
@@ -305,6 +317,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       buyWeapon,
       equipWeapon,
       buyUpgrade,
+      markTutorialSeen,
     }),
     [
       ready,
@@ -318,6 +331,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       buyWeapon,
       equipWeapon,
       buyUpgrade,
+      markTutorialSeen,
     ]
   );
 

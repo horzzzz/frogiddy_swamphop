@@ -54,6 +54,10 @@ export default function Settings() {
             </SettingsCard>
 
             <SettingsCard>
+              <SettingsLinkRow label="Tutorial" onPress={() => router.push('/tutorial')} />
+            </SettingsCard>
+
+            <SettingsCard>
               <SettingsLinkRow
                 label="Privacy Policy"
                 onPress={() => Linking.openURL('https://telegra.ph/PRIVACY-POLICY-08-24-121')}

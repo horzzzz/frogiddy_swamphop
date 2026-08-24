@@ -11,7 +11,8 @@ type GameHudProps = {
   coins: number;
   crystals: number;
   lives: number;
-  onPause: () => void;
+  /** Omit to render the pause icon as plain decoration — used by the tutorial screen's read-only HUD. */
+  onPause?: () => void;
 };
 
 /**
@@ -38,15 +39,22 @@ export function GameHud({ meters, highest, coins, crystals, lives, onPause }: Ga
           { gap: Game.pillGap * scale, paddingHorizontal: 24 * scale, paddingTop: 8 * scale },
         ]}
         pointerEvents="box-none">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Pause"
-          onPress={onPause}
-          hitSlop={12}
-          style={[styles.pause, { width: Game.iconSize * scale, height: Game.iconSize * scale, gap: 5 * scale }]}>
-          <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
-          <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
-        </Pressable>
+        {onPause ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pause"
+            onPress={onPause}
+            hitSlop={12}
+            style={[styles.pause, { width: Game.iconSize * scale, height: Game.iconSize * scale, gap: 5 * scale }]}>
+            <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
+            <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
+          </Pressable>
+        ) : (
+          <View style={[styles.pause, { width: Game.iconSize * scale, height: Game.iconSize * scale, gap: 5 * scale }]}>
+            <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
+            <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />
+          </View>
+        )}
 
         <CounterPill
           icon={require('@/assets/images/menu/icon-blu.webp')}

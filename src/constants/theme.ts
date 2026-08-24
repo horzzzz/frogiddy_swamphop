@@ -81,3 +81,13 @@ export const Game = {
   textSecondary: 'rgba(255, 255, 255, 0.7)',
   pauseBar: '#E8B455',
 } as const;
+
+/** Design tokens for the Tutorial screen, from the Figma "Tutorial" frame. */
+export const Tutorial = {
+  cardWidth: 185,
+  cardBg: 'rgba(0, 0, 0, 0.3)',
+  tongue: '#98E615',
+  attack: '#E6C715',
+  jump: '#8815E6',
+  hurty: '#E615AE',
+} as const;
