@@ -145,6 +145,7 @@ export function resetRun(state: GameState, seed: number) {
   state.frogX = platX + spec.w / 2;
   state.frogY = START_PLATFORM_Y + spec.surfaceY - FROG_HALF_H;
   state.lastSpawnX = platX;
+  state.lastPlatformWasSpikes = 0;
   state.frogVX = 0;
   state.frogVY = 0;
   state.frogState = FrogState.Idle;
@@ -266,6 +267,7 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
     jumpImpulseMin: setup.jumpImpulseMin,
     jumpImpulseMax: setup.jumpImpulseMax,
     lastSpawnX: 0,
+    lastPlatformWasSpikes: 0,
 
     aiming: false,
     aimDX: 0,

@@ -11,6 +11,7 @@ import { MenuTile } from '@/components/menu/menu-tile';
 import { SwampBackground } from '@/components/menu/swamp-background';
 import { DailyBonusModal } from '@/components/modal/daily-bonus-modal';
 import { Menu } from '@/constants/theme';
+import { adsEnabled } from '@/services/ads';
 import { useEconomy } from '@/state/economy';
 
 export default function Index() {
@@ -38,11 +39,13 @@ export default function Index() {
           </Pressable>
         </View>
 
-        <Image
-          source={require('@/assets/images/menu/badge-video.webp')}
-          style={styles.videoBadge}
-          contentFit="contain"
-        />
+        {adsEnabled() && (
+          <Image
+            source={require('@/assets/images/menu/badge-video.webp')}
+            style={styles.videoBadge}
+            contentFit="contain"
+          />
+        )}
 
         <View style={styles.logoSlot}>
           <View style={styles.logoBox}>

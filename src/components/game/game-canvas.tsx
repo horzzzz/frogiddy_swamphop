@@ -12,6 +12,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   runOnJS,
   runOnUI,
+  useAnimatedReaction,
   useDerivedValue,
   useFrameCallback,
   useSharedValue,
@@ -63,10 +64,12 @@ type GameCanvasProps = {
   upgrades: FrogeneticsLevels;
   onStats: (stats: RunStats) => void;
   onGameOver: (stats: RunStats) => void;
+  /** Fired once every texture has finished uploading and the first real frame can draw. */
+  onReady?: () => void;
 };
 
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { paused, weapon, upgrades, onStats, onGameOver },
+  { paused, weapon, upgrades, onStats, onGameOver, onReady },
   ref
 ) {
   const { width, height } = useWindowDimensions();
@@ -222,6 +225,17 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   useEffect(() => {
     frameCallback.setActive(!paused);
   }, [frameCallback, paused]);
+
+  // Assets stream in on their own schedule after mount — this is the only signal
+  // the JS side has for when the first real (non-empty) frame is on screen, so
+  // the game screen can hold a loader over the canvas until then.
+  useAnimatedReaction(
+    () => assets.value !== null,
+    (isReady, wasReady) => {
+      if (isReady && !wasReady && onReady) runOnJS(onReady)();
+    },
+    [onReady]
+  );
 
   useImperativeHandle(
     ref,

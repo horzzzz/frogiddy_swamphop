@@ -295,6 +295,9 @@ export type GameState = {
    *  centre can be kept within jumping distance of it. Run state — reset
    *  alongside the starting platform. */
   lastSpawnX: number;
+  /** 1 if the most recently spawned row was Spikes, so the next row's type roll
+   *  can rule Spikes back out — two hazard rows never land back to back. */
+  lastPlatformWasSpikes: number;
 
   // Slingshot aim.
   aiming: boolean;

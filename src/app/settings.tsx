@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { SettingsCard } from '@/components/settings/settings-card';
 import { SettingsLinkRow, SettingsToggleRow } from '@/components/settings/settings-row';
 import { TopBar } from '@/components/top-bar';
 import { Menu } from '@/constants/theme';
+import { reportEvent } from '@/services/analytics';
 
 /**
  * Nothing here is wired to real audio/haptics/push systems yet — the app has
@@ -21,6 +22,10 @@ export default function Settings() {
   const [soundOn, setSoundOn] = useState(true);
   const [vibrationOn, setVibrationOn] = useState(true);
   const [notificationsOn, setNotificationsOn] = useState(false);
+
+  useEffect(() => {
+    reportEvent('settings', { action: 'open' });
+  }, []);
 
   return (
     <SwampBackground>

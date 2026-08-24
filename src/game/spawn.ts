@@ -99,7 +99,18 @@ function spawnRow(state: GameState, surfaceY: number) {
   const index = allocPlatform(state);
   if (index === -1) return;
 
-  const type = pickPlatformType(state);
+  // Spikes never lands two rows in a row — reroll until a non-hazard type
+  // comes up, capped so a pathological RNG streak can't loop forever.
+  let type = pickPlatformType(state);
+  if (state.lastPlatformWasSpikes) {
+    let attempts = 0;
+    while (type === PlatformType.Spikes && attempts < 10) {
+      type = pickPlatformType(state);
+      attempts += 1;
+    }
+  }
+  state.lastPlatformWasSpikes = type === PlatformType.Spikes ? 1 : 0;
+
   const spec = PLATFORM_SPECS[type];
   const freeWidth = Math.max(0, DESIGN_WIDTH - spec.w);
   const y = surfaceY - Math.min(spec.surfaceY, spec.surfaceRightY);
