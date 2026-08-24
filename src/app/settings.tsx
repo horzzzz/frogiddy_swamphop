@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SwampBackground } from '@/components/menu/swamp-background';
@@ -49,8 +49,14 @@ export default function Settings() {
             </SettingsCard>
 
             <SettingsCard>
-              <SettingsLinkRow label="Privacy Policy" onPress={() => {}} />
-              <SettingsLinkRow label="Terms Of Use" onPress={() => {}} />
+              <SettingsLinkRow
+                label="Privacy Policy"
+                onPress={() => Linking.openURL('https://telegra.ph/PRIVACY-POLICY-08-24-121')}
+              />
+              <SettingsLinkRow
+                label="Terms Of Use"
+                onPress={() => Linking.openURL('https://telegra.ph/TERMS-OF-USE-08-24-10')}
+              />
             </SettingsCard>
           </View>
         </View>
