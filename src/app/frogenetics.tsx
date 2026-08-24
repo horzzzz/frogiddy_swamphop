@@ -78,13 +78,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   hero: {
-    width: 200,
-    height: 200,
+    width: 243,
+    height: 243,
     borderRadius: 15,
+    top: 8
   },
   cards: {
     flex: 1,
     width: '100%',
-    justifyContent: 'space-between',
+    gap: 8,
+    top: 16,
   },
 });

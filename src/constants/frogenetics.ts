@@ -14,14 +14,6 @@ export type FrogeneticsUpgrade = {
 
 export const FROGENETICS_UPGRADES: readonly FrogeneticsUpgrade[] = [
   {
-    id: 'eyes',
-    name: 'Eyes',
-    description: 'Detection Range',
-    value: '3.0 m',
-    price: 150,
-    icon: require('@/assets/images/frogenetics/icon-eyes.webp'),
-  },
-  {
     id: 'tongue',
     name: 'Tongue',
     description: 'Tongue Range',
