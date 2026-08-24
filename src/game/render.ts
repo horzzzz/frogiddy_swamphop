@@ -2,13 +2,17 @@ import type { SkCanvas, SkHostRect, SkImage, SkPaint } from '@shopify/react-nati
 
 import {
   DESIGN_WIDTH,
+  ENEMY_DEATH_LINGER,
   FIXED_DT,
   FROG_SPRITE_H,
   FROG_SPRITE_W,
   GRAVITY,
+  HIT_FLASH_ALPHA,
+  HIT_FLASH_INTERVAL,
   JUMP_IMPULSE_MAX,
   JUMP_IMPULSE_MIN,
   AIR_DRAG_PER_SECOND,
+  MAX_ENEMIES,
   MAX_FALL_SPEED,
   MAX_PICKUPS,
   MAX_PLATFORMS,
@@ -29,6 +33,8 @@ import {
 } from '@/game/constants';
 import { wrapX, wrappedDeltaX } from '@/game/physics';
 import {
+  ENEMY_SPECS,
+  EnemyState,
   FrogState,
   PICKUP_SPECS,
   PLATFORM_SPECS,
@@ -51,6 +57,8 @@ export type GameAssets = {
   platforms: Sprite[];
   /** Indexed by PickupType. */
   pickups: Sprite[];
+  /** Indexed by `enemyType * EnemyPose count + pose`. See EnemyPose. */
+  enemies: Sprite[];
 };
 
 /** Indices into `GameAssets.frog`; must match the load order in use-game-assets. */
@@ -68,6 +76,18 @@ export const FrogSprite = {
 } as const;
 
 /**
+ * Pose offset within one enemy type's three-sprite run in `GameAssets.enemies`.
+ * Order must match the load order in use-game-assets, which must match the crop
+ * order the enemy sheet was built with.
+ */
+export const EnemyPose = {
+  Idle: 0,
+  Attack: 1,
+  Dead: 2,
+} as const;
+const ENEMY_POSE_COUNT = 3;
+
+/**
  * Mutable scratch shared by every draw call. Allocating a rect or a paint inside
  * the frame loop would hand the GC work sixty times a second; these are built
  * once and rewritten in place via `setXYWH`.
@@ -81,6 +101,8 @@ export type RenderScratch = {
   tongueTipPaint: SkPaint;
   /** Stroked: the ground aim ray and the ring around the anchor it would grab. */
   aimPaint: SkPaint;
+  /** Filled, alpha rewritten per draw: enemies and the frog's i-frame flicker. */
+  enemyPaint: SkPaint;
   dst: SkHostRect;
   /** Only the background needs a variable source rect, for its cover crop. */
   src: SkHostRect;
@@ -89,6 +111,10 @@ export type RenderScratch = {
 function frogSpriteFor(state: GameState): number {
   'worklet';
   if (state.frogState === FrogState.Dead) return FrogSprite.Dead;
+  // The hit pose covers the whole i-frame window, not just the instant of
+  // impact — paired with the flicker below, that reads as "still recovering"
+  // rather than a single flinch frame.
+  if (state.hurtTimer > 0) return FrogSprite.Hit;
   if (state.attackTimer > 0) return FrogSprite.Attack;
   // Readying the tongue counts too — the pose is the feedback that a hold has
   // matured into an aim.
@@ -157,6 +183,44 @@ function drawPickups(
   }
 }
 
+/**
+ * Draws every enemy, bottom-anchored to the surface it stands on rather than
+ * centred on its collision box: the collision half-height is deliberately
+ * tighter than the art (legs, wings, antennae reach past the body), so
+ * centring on it would float the sprite above its feet.
+ */
+function drawEnemies(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch, clock: number) {
+  'worklet';
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0) continue;
+
+    const spec = ENEMY_SPECS[state.enemyType[i]];
+    const surfaceScreenY = state.enemyY[i] + spec.halfH - state.camY;
+    if (surfaceScreenY > state.viewH || surfaceScreenY - spec.h < -spec.h) continue;
+
+    const dying = state.enemyState[i] === EnemyState.Dying;
+    const pose =
+      state.enemyState[i] === EnemyState.WindUp
+        ? EnemyPose.Attack
+        : dying
+          ? EnemyPose.Dead
+          : EnemyPose.Idle;
+    const sprite = assets.enemies[state.enemyType[i] * ENEMY_POSE_COUNT + pose];
+
+    const bob = spec.bob ? Math.sin(clock * PICKUP_BOB_SPEED + state.enemyPhase[i]) * PICKUP_BOB : 0;
+
+    // Dying corpses fade out over their linger window rather than popping away.
+    s.enemyPaint.setAlphaf(dying ? Math.max(0, state.enemyTimer[i] / ENEMY_DEATH_LINGER) : 1);
+
+    canvas.save();
+    canvas.translate(state.enemyX[i], surfaceScreenY + bob);
+    canvas.scale(state.enemyFacing[i], 1);
+    s.dst.setXYWH(-spec.w / 2, -spec.h, spec.w, spec.h);
+    canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.enemyPaint);
+    canvas.restore();
+  }
+}
+
 function drawFrogSprite(
   canvas: SkCanvas,
   state: GameState,
@@ -176,11 +240,22 @@ function drawFrogSprite(
 
   const sprite = assets.frog[frogSpriteFor(state)];
 
+  // i-frame flicker: toggles off `hurtTimer` itself rather than the clock, so it
+  // always lands on "visible" the instant invulnerability ends — no dangling
+  // half-cycle. Reuses `enemyPaint`, the other alpha-mutable paint, rather than
+  // touching `s.paint`, which draws the background/platforms/pickups too.
+  let paint = s.paint;
+  if (state.hurtTimer > 0) {
+    const phase = Math.floor(state.hurtTimer / HIT_FLASH_INTERVAL) % 2;
+    s.enemyPaint.setAlphaf(phase === 0 ? 1 : HIT_FLASH_ALPHA);
+    paint = s.enemyPaint;
+  }
+
   canvas.save();
   canvas.translate(x, screenY);
   canvas.scale(state.frogFacing * scaleX, scaleY);
   s.dst.setXYWH(-FROG_SPRITE_W / 2, -FROG_SPRITE_H / 2, FROG_SPRITE_W, FROG_SPRITE_H);
-  canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.paint);
+  canvas.drawImageRect(sprite.image, sprite.src, s.dst, paint);
   canvas.restore();
 }
 
@@ -316,6 +391,7 @@ export function drawScene(
   drawBackground(canvas, state, assets, scratch);
   drawPlatforms(canvas, state, assets, scratch);
   drawPickups(canvas, state, assets, scratch, clock);
+  drawEnemies(canvas, state, assets, scratch, clock);
   drawFrog(canvas, state, assets, scratch);
   drawTongueAim(canvas, state, scratch);
   drawAim(canvas, state, scratch);

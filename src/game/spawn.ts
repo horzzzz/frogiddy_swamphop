@@ -2,9 +2,15 @@ import {
   CRYSTAL_SHARE,
   DESIGN_WIDTH,
   DESPAWN_BELOW,
+  ENEMY_CHANCE,
+  ENEMY_FREE_HEIGHT,
+  ENEMY_TYPE_WEIGHTS,
   GAP_MAX_RATIO,
   GAP_MIN_RATIO,
+  LIFE_CHANCE,
+  MAX_ENEMIES,
   MAX_JUMP_HEIGHT,
+  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   MOVING_PLATFORM_RANGE,
@@ -14,6 +20,8 @@ import {
 } from '@/game/constants';
 import { nextRandom, randomRange } from '@/game/rng';
 import {
+  EnemyState,
+  type EnemyTypeValue,
   PLATFORM_SPECS,
   PickupType,
   PlatformBehaviour,
@@ -47,6 +55,14 @@ function allocPickup(state: GameState): number {
   return -1;
 }
 
+function allocEnemy(state: GameState): number {
+  'worklet';
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0) return i;
+  }
+  return -1;
+}
+
 function pickPlatformType(state: GameState): PlatformTypeValue {
   'worklet';
   let roll = nextRandom(state) * TOTAL_WEIGHT;
@@ -55,6 +71,18 @@ function pickPlatformType(state: GameState): PlatformTypeValue {
     if (roll <= 0) return i as PlatformTypeValue;
   }
   return PlatformType.Small;
+}
+
+const ENEMY_TOTAL_WEIGHT = ENEMY_TYPE_WEIGHTS.reduce((sum, w) => sum + w, 0);
+
+function pickEnemyType(state: GameState): EnemyTypeValue {
+  'worklet';
+  let roll = nextRandom(state) * ENEMY_TOTAL_WEIGHT;
+  for (let i = 0; i < ENEMY_TYPE_WEIGHTS.length; i += 1) {
+    roll -= ENEMY_TYPE_WEIGHTS[i];
+    if (roll <= 0) return i as EnemyTypeValue;
+  }
+  return 0 as EnemyTypeValue;
 }
 
 /**
@@ -95,7 +123,50 @@ function spawnRow(state: GameState, surfaceY: number) {
     state.platX[index] = x;
   }
 
-  if (nextRandom(state) >= PICKUP_CHANCE) return;
+  // Enemies: never on the opening platform or on Bouncy (you cannot stand and
+  // fight where landing itself relaunches you), and not until the run has
+  // climbed clear of its opening stretch. Mutually exclusive with the row's
+  // pickup roll below — a platform is either defended or worth something, never
+  // both, so a life never spawns for free next to something guarding it.
+  const canHostEnemy =
+    type !== PlatformType.Start &&
+    type !== PlatformType.Bouncy &&
+    surfaceY <= state.startY - ENEMY_FREE_HEIGHT;
+
+  if (canHostEnemy && nextRandom(state) < ENEMY_CHANCE) {
+    const enemyIndex = allocEnemy(state);
+    if (enemyIndex !== -1) {
+      state.enemyType[enemyIndex] = pickEnemyType(state);
+      state.enemyAlive[enemyIndex] = 1;
+      state.enemyState[enemyIndex] = EnemyState.Idle;
+      state.enemyTimer[enemyIndex] = 0;
+      state.enemyPlat[enemyIndex] = index;
+      state.enemyOffsetX[enemyIndex] = spec.w / 2;
+      state.enemyFacing[enemyIndex] = 1;
+      state.enemyPhase[enemyIndex] = randomRange(state, 0, Math.PI * 2);
+      // Placeholder until the next `stepEnemies` call recomputes it from the
+      // platform's actual surface — nothing reads it before then.
+      state.enemyX[enemyIndex] = state.platX[index] + spec.w / 2;
+      state.enemyY[enemyIndex] = surfaceY;
+    }
+    return;
+  }
+
+  if (nextRandom(state) >= PICKUP_CHANCE) {
+    // No regular pickup this row — a separate, rarer roll for a life, only
+    // while under the cap. A life at full health would be a wasted drop.
+    if (state.lives >= MAX_LIVES || nextRandom(state) >= LIFE_CHANCE) return;
+
+    const lifeIndex = allocPickup(state);
+    if (lifeIndex === -1) return;
+
+    state.pickX[lifeIndex] = state.platX[index] + spec.w / 2;
+    state.pickY[lifeIndex] = surfaceY - PICKUP_HEIGHT * 1.6;
+    state.pickType[lifeIndex] = PickupType.Life;
+    state.pickAlive[lifeIndex] = 1;
+    state.pickPhase[lifeIndex] = randomRange(state, 0, Math.PI * 2);
+    return;
+  }
 
   const pickupIndex = allocPickup(state);
   if (pickupIndex === -1) return;
@@ -143,5 +214,15 @@ export function recycleBelow(state: GameState) {
   for (let i = 0; i < MAX_PICKUPS; i += 1) {
     if (state.pickAlive[i] === 0) continue;
     if (state.pickY[i] > limit) state.pickAlive[i] = 0;
+  }
+
+  // Platforms are recycled above first, so an enemy whose ride just vanished is
+  // caught in the same pass rather than lingering a frame until `stepEnemies`
+  // notices on its own.
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0) continue;
+    if (state.enemyY[i] > limit || state.platAlive[state.enemyPlat[i]] === 0) {
+      state.enemyAlive[i] = 0;
+    }
   }
 }

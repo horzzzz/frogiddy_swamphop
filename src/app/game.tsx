@@ -8,12 +8,10 @@ import { GameHud } from '@/components/game/game-hud';
 import { MenuButton } from '@/components/menu/menu-button';
 import { GameModal } from '@/components/modal/game-modal';
 import { Game } from '@/constants/theme';
+import { MAX_LIVES } from '@/game/constants';
 import { useEconomy } from '@/state/economy';
 
-const EMPTY_RUN: RunStats = { meters: 0, coins: 0, crystals: 0 };
-
-/** Health is not simulated yet — the HUD shows the design's full hearts until it is. */
-const PLACEHOLDER_LIVES = 3;
+const EMPTY_RUN: RunStats = { meters: 0, coins: 0, crystals: 0, lives: MAX_LIVES };
 
 export default function GameScreen() {
   const router = useRouter();
@@ -60,7 +58,7 @@ export default function GameScreen() {
         highest={Math.max(bestHeight, stats.meters)}
         coins={stats.coins}
         crystals={stats.crystals}
-        lives={PLACEHOLDER_LIVES}
+        lives={stats.lives}
         onPause={() => setPaused(true)}
       />
 

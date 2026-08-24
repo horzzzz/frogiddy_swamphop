@@ -46,6 +46,7 @@ export type RunStats = {
   meters: number;
   coins: number;
   crystals: number;
+  lives: number;
 };
 
 type GameCanvasProps = {
@@ -100,12 +101,18 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     aimPaint.setStrokeCap(StrokeCap.Round);
     aimPaint.setColor(Skia.Color(TONGUE_AIM_COLOR));
 
+    // Alpha rewritten per draw: enemy fade-out on death and the frog's i-frame
+    // flicker both reuse this one paint rather than each needing their own.
+    const enemyPaint = Skia.Paint();
+    enemyPaint.setAntiAlias(true);
+
     return {
       paint,
       dotPaint,
       tonguePaint,
       tongueTipPaint,
       aimPaint,
+      enemyPaint,
       dst: Skia.XYWHRect(0, 0, 0, 0),
       src: Skia.XYWHRect(0, 0, 0, 0),
     };
@@ -141,6 +148,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
           meters: heightInMeters(world, PIXELS_PER_METER),
           coins: world.coins,
           crystals: world.crystals,
+          lives: world.lives,
         });
       }
       return;
@@ -152,6 +160,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         meters: heightInMeters(world, PIXELS_PER_METER),
         coins: world.coins,
         crystals: world.crystals,
+        lives: world.lives,
       });
     }
   });

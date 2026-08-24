@@ -1,8 +1,11 @@
 import {
   ATTACK_POSE_DURATION,
+  ATTACK_RANGE_X,
+  ATTACK_RANGE_Y,
   DRAG_THRESHOLD,
   FROG_HALF_H,
   HOLD_TO_AIM_TONGUE,
+  MAX_ENEMIES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   PICKUP_RADIUS,
@@ -19,8 +22,9 @@ import {
   TONGUE_RETRACT_SPEED,
 } from '@/game/constants';
 import { applyAim, land, launchFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
-import { clearTongue } from '@/game/state';
+import { clearTongue, killEnemy } from '@/game/state';
 import {
+  EnemyState,
   PLATFORM_SPECS,
   TongueState,
   TongueTarget,
@@ -159,11 +163,51 @@ export function releaseTongueAim(state: GameState) {
   fireTongue(state, wrapX(state.touchX), state.touchY + state.camY);
 }
 
-/** Placeholder for the ground tap until there is anything to hit. */
+/**
+ * Ground tap: swings the sword. The frog cannot turn on the spot for anything
+ * but aiming a jump or the tongue, so the swing itself supplies the turn —
+ * it faces the nearest threat in range, then the blade reaches everything else
+ * on that same side. An enemy behind the turn survives this swing and needs
+ * another tap.
+ */
 export function triggerAttack(state: GameState) {
   'worklet';
   if (!state.grounded) return;
   state.attackTimer = ATTACK_POSE_DURATION;
+
+  let nearestIndex = -1;
+  let nearestDistSq = Infinity;
+  let nearestDX = 0;
+
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0 || state.enemyState[i] === EnemyState.Dying) continue;
+
+    const dx = wrappedDeltaX(state.frogX, state.enemyX[i]);
+    const dy = state.enemyY[i] - state.frogY;
+    if (Math.abs(dx) > ATTACK_RANGE_X || Math.abs(dy) > ATTACK_RANGE_Y) continue;
+
+    const distSq = dx * dx + dy * dy;
+    if (distSq < nearestDistSq) {
+      nearestDistSq = distSq;
+      nearestIndex = i;
+      nearestDX = dx;
+    }
+  }
+
+  if (nearestIndex === -1) return;
+  state.frogFacing = nearestDX >= 0 ? 1 : -1;
+
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0 || state.enemyState[i] === EnemyState.Dying) continue;
+
+    const dx = wrappedDeltaX(state.frogX, state.enemyX[i]);
+    const dy = state.enemyY[i] - state.frogY;
+    if (Math.abs(dx) > ATTACK_RANGE_X || Math.abs(dy) > ATTACK_RANGE_Y) continue;
+    // Enemies dead centre (dx === 0) count as on whichever side the swing faces.
+    if (dx !== 0 && Math.sign(dx) !== state.frogFacing) continue;
+
+    killEnemy(state, i);
+  }
 }
 
 function abandonTongue(state: GameState) {

@@ -24,7 +24,11 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "com.google.android.gms.permission.AD_ID",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -34,7 +38,12 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      ["expo-navigation-bar", { "hidden": true }],
+      [
+        "expo-navigation-bar",
+        {
+          "hidden": true
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -50,7 +59,10 @@
         "expo-build-properties",
         {
           "android": {
-            "buildArchs": ["armeabi-v7a", "arm64-v8a"]
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ]
           }
         }
       ]

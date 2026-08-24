@@ -1,5 +1,6 @@
 import { FIXED_DT, MAX_FRAME_DT, MAX_SUBSTEPS } from '@/game/constants';
 import { updateCamera } from '@/game/camera';
+import { stepEnemies } from '@/game/enemy';
 import { checkDeath, collectPickups, stepFrog, stepMovingPlatforms } from '@/game/physics';
 import { recycleBelow, spawnAhead } from '@/game/spawn';
 import { resolveTouch, stepTongue } from '@/game/tongue';
@@ -28,12 +29,15 @@ export function advance(state: GameState, frameDt: number) {
 
     // Order matters. Platforms move first so a passenger is carried before its
     // own integration; the touch is resolved before the tongue so a hold that
-    // just matured fires on this step; and while the tongue is pulling it owns
-    // the frog's motion outright, so ordinary gravity is skipped.
+    // just matured fires on this step; while the tongue is pulling it owns the
+    // frog's motion outright, so ordinary gravity is skipped; and enemies react
+    // after the frog has actually moved, so aggro and attacks see this step's
+    // real position, not last step's.
     stepMovingPlatforms(state, FIXED_DT);
     resolveTouch(state);
     stepTongue(state, FIXED_DT);
     if (state.tongueState !== TongueState.Pulling) stepFrog(state, FIXED_DT);
+    stepEnemies(state, FIXED_DT);
     collectPickups(state);
 
     state.accumulator -= FIXED_DT;

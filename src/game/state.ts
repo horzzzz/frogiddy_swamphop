@@ -2,13 +2,17 @@ import {
   CAMERA_ANCHOR,
   DESIGN_HEIGHT,
   DESIGN_WIDTH,
+  ENEMY_DEATH_LINGER,
   FROG_HALF_H,
   GAP_MIN_RATIO,
+  MAX_ENEMIES,
   MAX_JUMP_HEIGHT,
+  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
 } from '@/game/constants';
 import {
+  EnemyState,
   FrogState,
   PLATFORM_SPECS,
   PlatformType,
@@ -36,6 +40,22 @@ export function clearTongue(state: GameState) {
   state.tongueAimIndex = -1;
 }
 
+/**
+ * Turns a live enemy into a fading corpse. Shared by the sword and the stomp, so
+ * a kill always looks and behaves the same regardless of how it happened.
+ *
+ * Declared here, above `resetRun`, for the same reason `clearTongue` is: a
+ * worklet captures the functions it calls at the moment it is *defined*, not
+ * when it runs, so a forward reference within this file resolves to `undefined`
+ * and blows up on the first call. This file must never import another game
+ * module, which is what keeps it safe to sit at the bottom of that graph.
+ */
+export function killEnemy(state: GameState, index: number) {
+  'worklet';
+  state.enemyState[index] = EnemyState.Dying;
+  state.enemyTimer[index] = ENEMY_DEATH_LINGER;
+}
+
 /** World Y the starting platform is placed at. Arbitrary — everything is relative to it. */
 const START_PLATFORM_Y = 700;
 
@@ -50,6 +70,7 @@ export function resetRun(state: GameState, seed: number) {
   'worklet';
   state.platAlive.fill(0);
   state.pickAlive.fill(0);
+  state.enemyAlive.fill(0);
 
   const spec = PLATFORM_SPECS[PlatformType.Start];
   const platX = (DESIGN_WIDTH - spec.w) / 2;
@@ -70,6 +91,9 @@ export function resetRun(state: GameState, seed: number) {
   state.frogFacing = 1;
   state.grounded = true;
   state.groundedIndex = 0;
+
+  state.lives = MAX_LIVES;
+  state.hurtTimer = 0;
 
   state.camY = state.frogY - state.viewH * CAMERA_ANCHOR;
 
@@ -117,6 +141,9 @@ export function createGameState(): GameState {
     frogFacing: 1,
     grounded: false,
     groundedIndex: -1,
+
+    lives: MAX_LIVES,
+    hurtTimer: 0,
 
     camY: 0,
     viewH: DESIGN_HEIGHT,
@@ -177,6 +204,17 @@ export function createGameState(): GameState {
     pickType: new Int8Array(MAX_PICKUPS),
     pickAlive: new Uint8Array(MAX_PICKUPS),
     pickPhase: new Float32Array(MAX_PICKUPS),
+
+    enemyX: new Float32Array(MAX_ENEMIES),
+    enemyY: new Float32Array(MAX_ENEMIES),
+    enemyType: new Int8Array(MAX_ENEMIES),
+    enemyAlive: new Uint8Array(MAX_ENEMIES),
+    enemyState: new Int8Array(MAX_ENEMIES),
+    enemyTimer: new Float32Array(MAX_ENEMIES),
+    enemyPlat: new Int32Array(MAX_ENEMIES),
+    enemyOffsetX: new Float32Array(MAX_ENEMIES),
+    enemyFacing: new Float32Array(MAX_ENEMIES),
+    enemyPhase: new Float32Array(MAX_ENEMIES),
   };
 
   resetRun(state, 1);

@@ -76,6 +76,24 @@ export const PickupType = {
 } as const;
 export type PickupTypeValue = (typeof PickupType)[keyof typeof PickupType];
 
+/** Index into ENEMY_SPECS and into the enemy texture array. Order must match both. */
+export const EnemyType = {
+  Swamp: 0,
+  Slime: 1,
+  Mosq: 2,
+} as const;
+export type EnemyTypeValue = (typeof EnemyType)[keyof typeof EnemyType];
+
+export const EnemyState = {
+  Idle: 0,
+  /** Telegraphing the attack pose; damage lands when this expires. */
+  WindUp: 1,
+  Recover: 2,
+  /** Dead-pose corpse, fading out before the slot frees. */
+  Dying: 3,
+} as const;
+export type EnemyStateValue = (typeof EnemyState)[keyof typeof EnemyState];
+
 export type PlatformSpec = {
   /**
    * Sprite footprint in design units. Widths come from the Figma components;
@@ -140,6 +158,31 @@ export const PICKUP_SPECS: readonly PickupSpec[] = [
   { w: 45, h: 40 }, // Life
 ];
 
+export type EnemySpec = {
+  /** Sprite footprint in design units. Each type's three poses (idle/attack/dead)
+   *  share one tight canvas and ground line, cropped from the Figma source sheet
+   *  — the same treatment the frog sprite got, so switching pose never jumps size. */
+  w: number;
+  h: number;
+  /**
+   * Half-height of the collision box, measured from the sprite's centre — same
+   * convention as FROG_HALF_H, which is what makes the stomp check (feet crossing
+   * the enemy's head plane) and the aggro/attack range checks symmetrical.
+   * Deliberately tighter than the art: legs, wings and antennae stick out well
+   * past the creature's actual body.
+   */
+  halfH: number;
+  /** Whether the sprite bobs like a pickup — the two flying types do, the slime does not. */
+  bob: boolean;
+};
+
+/** Indexed by EnemyType. */
+export const ENEMY_SPECS: readonly EnemySpec[] = [
+  { w: 56, h: 42, halfH: 16, bob: true }, // Swamp fly
+  { w: 48, h: 33, halfH: 14, bob: false }, // Slime
+  { w: 56, h: 37, halfH: 15, bob: true }, // Mosq
+];
+
 /**
  * The entire simulation, allocated once and mutated in place on the UI thread.
  *
@@ -160,6 +203,11 @@ export type GameState = {
   grounded: boolean;
   /** Platform the frog is standing on, or -1. Used to ride moving platforms. */
   groundedIndex: number;
+
+  // Health.
+  lives: number;
+  /** Counts down i-frames after a hit; also drives the hit-flash render. */
+  hurtTimer: number;
 
   // Camera. `camY` is the world Y at the top edge of the screen.
   camY: number;
@@ -216,7 +264,7 @@ export type GameState = {
   /** Value of `elapsed` when the finger went down. */
   touchStartedAt: number;
 
-  /** Counts down the attack pose after a ground tap. Placeholder until enemies exist. */
+  /** Counts down the attack pose after a ground tap. */
   attackTimer: number;
 
   // Slingshot aim.
@@ -251,4 +299,22 @@ export type GameState = {
   pickAlive: Uint8Array;
   /** Per-pickup phase offset so a column of coins does not bob in lockstep. */
   pickPhase: Float32Array;
+
+  // Enemy pool.
+  enemyX: Float32Array;
+  enemyY: Float32Array;
+  enemyType: Int8Array;
+  enemyAlive: Uint8Array;
+  enemyState: Int8Array;
+  /** Counts down whatever `enemyState` is currently doing. */
+  enemyTimer: Float32Array;
+  /** Platform the enemy stands on, or -1 for a free-floating one. */
+  enemyPlat: Int32Array;
+  /** Anchor X relative to its platform's own X — same trick as `tongueAnchorOffsetX`,
+   *  so a moving platform carries its enemy along. */
+  enemyOffsetX: Float32Array;
+  /** 1 faces right, -1 faces left. */
+  enemyFacing: Float32Array;
+  /** Per-enemy bob phase offset, same purpose as `pickPhase`. */
+  enemyPhase: Float32Array;
 };

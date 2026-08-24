@@ -124,6 +124,7 @@ export const MOVING_PLATFORM_RANGE = 0.5;
 
 export const MAX_PLATFORMS = 40;
 export const MAX_PICKUPS = 48;
+export const MAX_ENEMIES = 16;
 
 /** Shared height for every pickup; widths follow each sprite's own aspect. */
 export const PICKUP_HEIGHT = 40;
@@ -132,6 +133,46 @@ export const PICKUP_RADIUS = 30;
 /** Pickups bob vertically by this much to read as collectable rather than scenery. */
 export const PICKUP_BOB = 5;
 export const PICKUP_BOB_SPEED = 2.4;
+
+// ---------------------------------------------------------------------------
+// Enemies & health
+// ---------------------------------------------------------------------------
+
+export const MAX_LIVES = 3;
+/** i-frames after taking a hit. Also drives the hit-flash while it counts down. */
+export const FROG_HURT_INVULN = 1;
+
+/** Chance a spawned row also carries an enemy. Rolled after the platform is placed. */
+export const ENEMY_CHANCE = 0.22;
+/** Relative frequency per EnemyType. Purely cosmetic — every type shares the same
+ *  behaviour, so this is just how often each look shows up. */
+export const ENEMY_TYPE_WEIGHTS = [40, 35, 25];
+/** No enemy spawns below this much climb — the run's opening stretch stays a pure
+ *  platforming warm-up before combat is introduced. */
+export const ENEMY_FREE_HEIGHT = 500;
+
+/**
+ * How long an enemy telegraphs before its attack lands — the window the player
+ * has to either kill it or get out of its reach. The number to tune first for feel.
+ */
+export const ENEMY_WINDUP = 0.6;
+/** Cooldown after an attack (hit or miss) before the enemy can wind up again. */
+export const ENEMY_ATTACK_COOLDOWN = 1.2;
+/** How long a killed enemy's corpse lingers, fading out, before its slot frees. */
+export const ENEMY_DEATH_LINGER = 0.35;
+/** Radius an idle enemy watches for a grounded frog to aggro onto. */
+export const ENEMY_AGGRO_RANGE_X = 90;
+export const ENEMY_AGGRO_RANGE_Y = 60;
+/** Sword reach: how close an enemy has to be for a ground tap to hit it. */
+export const ATTACK_RANGE_X = 70;
+export const ATTACK_RANGE_Y = 50;
+/** Bounce off a stomp kill — a small hop, well under a minimum jump (650), just
+ *  enough to read as "bounced off its head" rather than an ordinary landing. */
+export const STOMP_BOUNCE = 420;
+
+/** Chance a row with no regular pickup gets a life instead, gated separately by
+ *  `MAX_LIVES` at spawn time so a topped-up run never wastes one. */
+export const LIFE_CHANCE = 0.12;
 
 // ---------------------------------------------------------------------------
 // Presentation
@@ -145,6 +186,12 @@ export const PICKUP_BOB_SPEED = 2.4;
 export const SQUASH_REFERENCE_SPEED = 1400;
 export const SQUASH_MAX_STRETCH = 0.22;
 export const SQUASH_MAX_SQUASH = 0.16;
+
+/** Half-period of the frog's i-frame flicker — the visible sign the hit can't
+ *  repeat yet. Toggled off `hurtTimer`, so it always ends exactly when i-frames do. */
+export const HIT_FLASH_INTERVAL = 0.08;
+/** Alpha while the flicker is in its "off" phase. */
+export const HIT_FLASH_ALPHA = 0.35;
 
 /** Set true to draw the diagnostic readout over the game. */
 export const DEBUG_OVERLAY = false;

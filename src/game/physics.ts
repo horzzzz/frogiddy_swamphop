@@ -7,17 +7,23 @@ import {
   DESIGN_WIDTH,
   FROG_HALF_H,
   FROG_HALF_W,
+  FROG_HURT_INVULN,
   GRAVITY,
   JUMP_IMPULSE_MAX,
   JUMP_IMPULSE_MIN,
+  MAX_ENEMIES,
   MAX_FALL_SPEED,
+  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
+  STOMP_BOUNCE,
 } from '@/game/constants';
-import { clearTongue } from '@/game/state';
+import { clearTongue, killEnemy } from '@/game/state';
 import {
+  ENEMY_SPECS,
+  EnemyState,
   FrogState,
   PLATFORM_SPECS,
   PickupType,
@@ -139,6 +145,27 @@ export function land(state: GameState, index: number, surfaceY: number) {
 }
 
 /**
+ * Applies one enemy hit. A no-op while i-frames are still running, so a windup
+ * that somehow lands during the flash cannot stack damage.
+ *
+ * Deliberately does not touch velocity or position: getting hit knocks nothing
+ * back. A shove on a narrow platform would turn "took a hit" into "fell off",
+ * which punishes the player twice for one mistake.
+ */
+export function damageFrog(state: GameState) {
+  'worklet';
+  if (state.hurtTimer > 0 || state.frogState === FrogState.Dead) return;
+
+  state.lives -= 1;
+  state.hurtTimer = FROG_HURT_INVULN;
+
+  if (state.lives <= 0) {
+    state.frogState = FrogState.Dead;
+    state.running = false;
+  }
+}
+
+/**
  * Advances every moving platform, carrying a frog that is riding one.
  *
  * Runs before the frog's own integration so a passenger never lags a frame
@@ -193,6 +220,28 @@ export function stepFrog(state: GameState, dt: number) {
   if (state.frogVY <= 0) return;
   const bottom = state.frogY + FROG_HALF_H;
 
+  // Stomp: a falling frog whose feet crossed an enemy's head plane this step
+  // kills it and bounces off, exactly like the one-way platform sweep below but
+  // checked first — a stomp and a landing can never both resolve for the same
+  // step. Comparing against the previous position, not overlap, for the same
+  // tunnelling reason the platform sweep does.
+  for (let i = 0; i < MAX_ENEMIES; i += 1) {
+    if (state.enemyAlive[i] === 0 || state.enemyState[i] === EnemyState.Dying) continue;
+
+    const spec = ENEMY_SPECS[state.enemyType[i]];
+    const dx = wrappedDeltaX(state.enemyX[i], state.frogX);
+    if (Math.abs(dx) > FROG_HALF_W + spec.w / 2) continue;
+
+    const headY = state.enemyY[i] - spec.halfH;
+    if (previousBottom > headY || bottom < headY) continue;
+
+    killEnemy(state, i);
+    state.frogVY = -STOMP_BOUNCE;
+    state.frogState = FrogState.Jump;
+    state.tongueUsedThisFlight = false;
+    return;
+  }
+
   let hitIndex = -1;
   let hitSurface = 0;
 
@@ -246,7 +295,9 @@ export function collectPickups(state: GameState) {
 
     state.pickAlive[i] = 0;
     if (state.pickType[i] === PickupType.Crystal) state.crystals += 1;
-    else state.coins += 1;
+    else if (state.pickType[i] === PickupType.Life) {
+      state.lives = Math.min(MAX_LIVES, state.lives + 1);
+    } else state.coins += 1;
   }
 }
 

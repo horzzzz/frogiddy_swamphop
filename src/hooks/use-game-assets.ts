@@ -61,6 +61,17 @@ export function useGameAssets(): SharedValue<GameAssets | null> {
   const pickCrystal = useImageAsTexture(require('@/assets/images/game/pickups/crystal.png'));
   const pickLife = useImageAsTexture(require('@/assets/images/game/pickups/life.png'));
 
+  // Enemy order: EnemyType (Swamp, Slime, Mosq) × EnemyPose (Idle, Attack, Dead).
+  const swampIdle = useImageAsTexture(require('@/assets/images/game/enemies/swamp-idle.png'));
+  const swampAttack = useImageAsTexture(require('@/assets/images/game/enemies/swamp-attack.png'));
+  const swampDead = useImageAsTexture(require('@/assets/images/game/enemies/swamp-dead.png'));
+  const slimeIdle = useImageAsTexture(require('@/assets/images/game/enemies/slime-idle.png'));
+  const slimeAttack = useImageAsTexture(require('@/assets/images/game/enemies/slime-attack.png'));
+  const slimeDead = useImageAsTexture(require('@/assets/images/game/enemies/slime-dead.png'));
+  const mosqIdle = useImageAsTexture(require('@/assets/images/game/enemies/mosq-idle.png'));
+  const mosqAttack = useImageAsTexture(require('@/assets/images/game/enemies/mosq-attack.png'));
+  const mosqDead = useImageAsTexture(require('@/assets/images/game/enemies/mosq-dead.png'));
+
   return useDerivedValue<GameAssets | null>(() => {
     const bgImage = bg.value;
     if (!bgImage) return null;
@@ -90,9 +101,20 @@ export function useGameAssets(): SharedValue<GameAssets | null> {
       platCorner.value,
     ]);
     const pickups = collect([pickCoin.value, pickCrystal.value, pickLife.value]);
+    const enemies = collect([
+      swampIdle.value,
+      swampAttack.value,
+      swampDead.value,
+      slimeIdle.value,
+      slimeAttack.value,
+      slimeDead.value,
+      mosqIdle.value,
+      mosqAttack.value,
+      mosqDead.value,
+    ]);
 
-    if (!frog || !platforms || !pickups) return null;
+    if (!frog || !platforms || !pickups || !enemies) return null;
 
-    return { bg: toSprite(bgImage), frog, platforms, pickups };
+    return { bg: toSprite(bgImage), frog, platforms, pickups, enemies };
   });
 }
