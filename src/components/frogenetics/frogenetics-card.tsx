@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { FROGENETICS_MAX_LEVEL, upgradePrice, type FrogeneticsUpgrade } from '@/constants/frogenetics';
 import { Menu } from '@/constants/theme';
+import { playSfx } from '@/services/audio';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -44,7 +45,10 @@ export function FrogeneticsCard({ upgrade, level, canAfford, onBuy }: Frogenetic
         accessibilityLabel={maxed ? `${upgrade.name} maxed out` : `Upgrade ${upgrade.name}`}
         accessibilityState={{ disabled: maxed }}
         disabled={maxed}
-        onPress={onBuy}
+        onPress={() => {
+          playSfx('click');
+          onBuy();
+        }}
         onPressIn={() => !maxed && (pressed.value = withTiming(1, { duration: 80 }))}
         onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
         style={[styles.button, animatedStyle, { opacity: maxed ? 0.5 : canAfford ? 1 : 0.85 }]}>

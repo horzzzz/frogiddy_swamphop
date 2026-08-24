@@ -12,6 +12,7 @@ import { Game } from '@/constants/theme';
 import { WEAPONS } from '@/constants/weapons';
 import { adsEnabled, showRewarded } from '@/services/ads';
 import { reportEvent } from '@/services/analytics';
+import { playSfx } from '@/services/audio';
 import { useEconomy } from '@/state/economy';
 
 const emptyRun = (maxLives: number): RunStats => ({ meters: 0, coins: 0, crystals: 0, lives: maxLives });
@@ -36,6 +37,7 @@ export default function GameScreen() {
     (final: RunStats) => {
       setStats(final);
       setGameOver(true);
+      playSfx('lose');
       reportEvent('game', { action: 'loss' });
       // The whole run is banked in one write — pickups never touch React state.
       recordRun(final.coins, final.crystals, final.meters);

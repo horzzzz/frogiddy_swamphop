@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
+import { playSfx } from '@/services/audio';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -24,7 +25,10 @@ export function TopBar({ title, onBack }: TopBarProps) {
       <AnimatedPressable
         accessibilityRole="button"
         accessibilityLabel="Back"
-        onPress={onBack}
+        onPress={() => {
+          playSfx('click');
+          onBack();
+        }}
         onPressIn={() => (pressed.value = withTiming(1, { duration: 80 }))}
         onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
         style={[styles.back, animatedStyle]}>

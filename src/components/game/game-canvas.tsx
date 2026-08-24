@@ -24,6 +24,9 @@ import {
   CAMERA_ANCHOR,
   DESIGN_WIDTH,
   PIXELS_PER_METER,
+  SFX_DAMAGE,
+  SFX_HIT,
+  SFX_PICKUP,
   TONGUE_AIM_COLOR,
   TONGUE_AIM_WIDTH,
   TONGUE_COLOR,
@@ -36,11 +39,24 @@ import { createGameState, heightInMeters, resetRun } from '@/game/state';
 import { advance } from '@/game/step';
 import { FrogState, TouchMode } from '@/game/types';
 import { useGameAssets } from '@/hooks/use-game-assets';
+import { playSfx } from '@/services/audio';
 import type { Weapon } from '@/constants/weapons';
 import { jumpImpulsesFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
 
 /** How often run totals are pushed to the React HUD. Never once per frame. */
 const STATS_INTERVAL_MS = 100;
+
+/**
+ * Turns one frame's worth of sound cues into playback. Module scope because
+ * `runOnJS` needs a stable target — a function recreated per render would be
+ * re-serialised to the UI thread on every one.
+ */
+function playGameSfx(cues: number) {
+  if (cues & SFX_HIT) playSfx('hit');
+  if (cues & SFX_PICKUP) playSfx('pickup');
+  if (cues & SFX_DAMAGE) playSfx('hurt');
+}
+
 /** Bare-fisted attack pose — used whenever no Arsenal weapon is equipped. */
 const DEFAULT_ATTACK_SPRITE = require('@/assets/images/game/frog/attack.webp');
 
@@ -197,6 +213,15 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     const world = state.value;
     advance(world, (info.timeSincePreviousFrame ?? 16.667) / 1000);
     clock.value = world.elapsed;
+
+    // At most one hop to JS per frame: every cue raised across this frame's
+    // substeps is drained together, so a busy frame costs no more than a quiet
+    // one and the audio never lands in the middle of the physics loop.
+    if (world.sfxFlags !== 0) {
+      const cues = world.sfxFlags;
+      world.sfxFlags = 0;
+      runOnJS(playGameSfx)(cues);
+    }
 
     if (world.frogState === FrogState.Dead) {
       if (!gameOverSent.value) {

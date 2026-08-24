@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { Menu } from '@/constants/theme';
 import { WEAPONS, type Weapon } from '@/constants/weapons';
+import { playSfx } from '@/services/audio';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -65,7 +66,11 @@ export function WeaponCard({ weapon, owned, equipped, canAfford, onBuy, onEquip 
         accessibilityLabel={equipped ? `${weapon.name} equipped` : owned ? `Equip ${weapon.name}` : `Buy ${weapon.name}`}
         accessibilityState={{ disabled }}
         disabled={disabled}
-        onPress={owned ? onEquip : onBuy}
+        onPress={() => {
+          playSfx('click');
+          if (owned) onEquip();
+          else onBuy();
+        }}
         onPressIn={() => !disabled && (pressed.value = withTiming(1, { duration: 80 }))}
         onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
         style={[styles.button, animatedStyle, { opacity: equipped ? 0.5 : canAfford || owned ? 1 : 0.85 }]}>

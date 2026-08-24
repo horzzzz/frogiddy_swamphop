@@ -13,6 +13,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { reportEvent } from '@/services/analytics';
+import { pauseMusicForAd, resumeMusicAfterAd } from '@/services/audio';
 
 type StartIoModule = typeof import('react-native-start-io-sdk');
 
@@ -124,6 +125,7 @@ export function showRewarded(source: string): Promise<boolean> {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      resumeMusicAfterAd();
       reportEvent('rewarded_ad', { action: value ? 'reward' : 'error', source });
       // Get the next video in flight for the following tap.
       void preloadRewarded();
@@ -136,6 +138,9 @@ export function showRewarded(source: string): Promise<boolean> {
     const run = async () => {
       try {
         await module.loadAd(module.AdType.REWARDED_VIDEO);
+        // Paused only once the video is actually about to play, so a slow fill
+        // does not leave the app sitting in silence.
+        pauseMusicForAd();
         module.showAd((result) => {
           switch (result) {
             case module.AdResultType.AdRewarded:

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CounterPill } from '@/components/menu/counter-pill';
 import { Game } from '@/constants/theme';
 import { DEBUG_OVERLAY, DESIGN_WIDTH } from '@/game/constants';
+import { playSfx } from '@/services/audio';
 
 type GameHudProps = {
   meters: number;
@@ -43,7 +44,10 @@ export function GameHud({ meters, highest, coins, crystals, lives, onPause }: Ga
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Pause"
-            onPress={onPause}
+            onPress={() => {
+              playSfx('click');
+              onPause();
+            }}
             hitSlop={12}
             style={[styles.pause, { width: Game.iconSize * scale, height: Game.iconSize * scale, gap: 5 * scale }]}>
             <View style={[styles.pauseBar, { width: 9 * scale, height: 26 * scale, borderRadius: 3 * scale }]} />

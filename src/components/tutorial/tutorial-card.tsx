@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Tutorial } from '@/constants/theme';
 import type { TutorialCardData } from '@/constants/tutorial';
+import { playSfx } from '@/services/audio';
 
 /** Card art from the Figma frame renders at this fixed height; width follows its own aspect ratio. */
 const IMAGE_HEIGHT = 98;
@@ -38,7 +39,10 @@ export function TutorialCard({ card, scale, onInfoPress }: TutorialCardProps) {
           accessibilityRole="button"
           accessibilityLabel={`About ${card.title}`}
           hitSlop={10}
-          onPress={onInfoPress}
+          onPress={() => {
+            playSfx('click');
+            onInfoPress();
+          }}
           style={[
             styles.infoButton,
             {

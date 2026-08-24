@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
+import { playSfx } from '@/services/audio';
 
 /** Width:height ratio every menu button is locked to, regardless of its content. */
 const BUTTON_ASPECT_RATIO = 3.2;
@@ -56,7 +57,10 @@ export function MenuButton(props: MenuButtonProps) {
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled || !onPress}
-      onPress={onPress}
+      onPress={() => {
+        playSfx('click');
+        onPress?.();
+      }}
       onPressIn={() => (pressed.value = withTiming(1, { duration: 80 }))}
       onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
       style={[

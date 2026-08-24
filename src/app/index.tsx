@@ -12,6 +12,7 @@ import { SwampBackground } from '@/components/menu/swamp-background';
 import { DailyBonusModal } from '@/components/modal/daily-bonus-modal';
 import { Menu } from '@/constants/theme';
 import { adsEnabled } from '@/services/ads';
+import { playSfx } from '@/services/audio';
 import { useEconomy } from '@/state/economy';
 
 export default function Index() {
@@ -30,7 +31,10 @@ export default function Index() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Settings"
-            onPress={() => router.push('/settings')}>
+            onPress={() => {
+              playSfx('click');
+              router.push('/settings');
+            }}>
             <Image
               source={require('@/assets/images/menu/icon-gear.webp')}
               style={styles.gear}

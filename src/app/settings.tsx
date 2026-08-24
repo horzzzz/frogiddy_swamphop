@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,18 +10,26 @@ import { SettingsLinkRow, SettingsToggleRow } from '@/components/settings/settin
 import { TopBar } from '@/components/top-bar';
 import { Menu } from '@/constants/theme';
 import { reportEvent } from '@/services/analytics';
+import { useSettings } from '@/state/settings';
 
 /**
- * Nothing here is wired to real audio/haptics/push systems yet — the app has
- * none. Toggles hold local state so the screen is fully interactive, but they
- * are stubs until those systems exist.
+ * Music and Sound drive the real audio service and are persisted. Vibration and
+ * Notifications are still stubs — the app has neither haptics nor push — but
+ * their positions are saved all the same, so they behave like switches rather
+ * than resetting every time the screen is opened.
  */
 export default function Settings() {
   const router = useRouter();
-  const [musicOn, setMusicOn] = useState(true);
-  const [soundOn, setSoundOn] = useState(true);
-  const [vibrationOn, setVibrationOn] = useState(true);
-  const [notificationsOn, setNotificationsOn] = useState(false);
+  const {
+    musicOn,
+    soundOn,
+    vibrationOn,
+    notificationsOn,
+    setMusicOn,
+    setSoundOn,
+    setVibrationOn,
+    setNotificationsOn,
+  } = useSettings();
 
   useEffect(() => {
     reportEvent('settings', { action: 'open' });

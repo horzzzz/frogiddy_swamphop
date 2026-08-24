@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
 import { Menu } from '@/constants/theme';
+import { playSfx } from '@/services/audio';
 
 type GameModalProps = {
   visible: boolean;
@@ -25,7 +26,14 @@ export function GameModal({ visible, title, children, onClose, dismissable = tru
     <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(240)} style={styles.overlay}>
       <Pressable
         style={StyleSheet.absoluteFill}
-        onPress={dismissable ? onClose : undefined}
+        onPress={
+          dismissable
+            ? () => {
+                playSfx('click');
+                onClose();
+              }
+            : undefined
+        }
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       />

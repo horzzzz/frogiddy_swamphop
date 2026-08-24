@@ -18,6 +18,8 @@ import {
   MAX_PLATFORMS,
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
+  SFX_DAMAGE,
+  SFX_PICKUP,
   STOMP_BOUNCE,
 } from '@/game/constants';
 import { clearTongue, killEnemy, spawnFlyer } from '@/game/state';
@@ -159,6 +161,7 @@ export function damageFrog(state: GameState) {
 
   state.lives -= 1;
   state.hurtTimer = FROG_HURT_INVULN;
+  state.sfxFlags |= SFX_DAMAGE;
 
   if (state.lives <= 0) {
     state.frogState = FrogState.Dead;
@@ -295,6 +298,7 @@ export function collectPickups(state: GameState) {
     if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
 
     state.pickAlive[i] = 0;
+    state.sfxFlags |= SFX_PICKUP;
     if (state.pickType[i] === PickupType.Crystal) state.crystals += 1;
     else if (state.pickType[i] === PickupType.Life) {
       state.lives = Math.min(state.maxLives, state.lives + 1);

@@ -314,6 +314,10 @@ export type GameState = {
   accumulator: number;
   elapsed: number;
 
+  /** Sound cues raised this frame — see the `SFX_*` bits in constants.ts.
+   *  Written by the simulation, cleared by whoever reads it. */
+  sfxFlags: number;
+
   // Platform pool.
   platX: Float32Array;
   platY: Float32Array;

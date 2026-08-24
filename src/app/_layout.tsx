@@ -10,7 +10,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LoadingScreen } from '@/components/loading-screen';
 import { initAds } from '@/services/ads';
 import { initAnalytics } from '@/services/analytics';
+import { initAudio } from '@/services/audio';
 import { EconomyProvider } from '@/state/economy';
+import { SettingsProvider } from '@/state/settings';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -22,6 +24,7 @@ export default function RootLayout() {
   useEffect(() => {
     initAnalytics();
     initAds();
+    initAudio();
   }, []);
 
   useEffect(() => {
@@ -38,13 +41,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <EconomyProvider>
-            {loading ? (
-              <LoadingScreen onDone={handleLoadingDone} />
-            ) : (
-              <Stack screenOptions={{ headerShown: false }} />
-            )}
-          </EconomyProvider>
+          <SettingsProvider>
+            <EconomyProvider>
+              {loading ? (
+                <LoadingScreen onDone={handleLoadingDone} />
+              ) : (
+                <Stack screenOptions={{ headerShown: false }} />
+              )}
+            </EconomyProvider>
+          </SettingsProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

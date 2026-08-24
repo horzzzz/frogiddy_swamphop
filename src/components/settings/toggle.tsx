@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { playSfx } from '@/services/audio';
+
 const TRACK_WIDTH = 42;
 const TRACK_HEIGHT = 22;
 const THUMB_SIZE = 14;
@@ -35,7 +37,10 @@ export function Toggle({ value, onValueChange, accessibilityLabel }: ToggleProps
       accessibilityRole="switch"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value }}
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        playSfx('click');
+        onValueChange(!value);
+      }}
       hitSlop={8}>
       <Animated.View style={[styles.track, trackStyle]}>
         <LinearGradient colors={['#708B25', '#3A5012']} style={StyleSheet.absoluteFill} />

@@ -12,6 +12,7 @@ import { Menu } from '@/constants/theme';
 import { TUTORIAL_CARDS, type TutorialCardData } from '@/constants/tutorial';
 import { DESIGN_WIDTH } from '@/game/constants';
 import { reportEvent } from '@/services/analytics';
+import { playSfx } from '@/services/audio';
 import { useEconomy } from '@/state/economy';
 
 /**
@@ -36,6 +37,7 @@ export default function Tutorial() {
 
   const handleContinue = () => {
     if (activeCard) return;
+    playSfx('click');
     markTutorialSeen();
     reportEvent('tutorial', { action: 'complete' });
     if (router.canGoBack()) {

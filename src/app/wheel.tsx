@@ -10,6 +10,7 @@ import { TopBar } from '@/components/top-bar';
 import { FortuneWheel, type FortuneWheelHandle } from '@/components/wheel/fortune-wheel';
 import { pickSegmentIndex, WHEEL_SEGMENTS, type WheelSegment } from '@/components/wheel/segments';
 import { Menu } from '@/constants/theme';
+import { startWheelSpin, stopWheelSpin } from '@/services/audio';
 import { cooldownRemaining, useEconomy, WHEEL_SPIN_COOLDOWN_MS } from '@/state/economy';
 
 function formatRemaining(ms: number) {
@@ -37,6 +38,10 @@ export default function Wheel() {
     return () => clearInterval(timer);
   }, [lastWheelSpinAt]);
 
+  // Leaving mid-spin skips the landing callback, so the ratchet has to be
+  // stopped here as well or it would keep ticking on the menu.
+  useEffect(() => stopWheelSpin, []);
+
   const canSpin = !spinning && (freeSpins > 0 || remaining === 0);
 
   const handleSpin = () => {
@@ -45,7 +50,9 @@ export default function Wheel() {
 
     const index = pickSegmentIndex();
     setSpinning(true);
+    startWheelSpin();
     wheelRef.current?.spin(index, () => {
+      stopWheelSpin();
       const segment = WHEEL_SEGMENTS[index];
       if (segment.kind === 'coins') addCoins(segment.amount);
       if (segment.kind === 'free-spins') grantFreeSpins(segment.amount);

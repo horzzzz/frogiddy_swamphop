@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Menu } from '@/constants/theme';
+import { playSfx } from '@/services/audio';
 
 import { Toggle } from './toggle';
 
@@ -28,7 +29,14 @@ type SettingsLinkRowProps = {
 /** A stub navigation row — the arrow signals "more", `onPress` has nothing to open yet. */
 export function SettingsLinkRow({ label, onPress }: SettingsLinkRowProps) {
   return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable
+      style={styles.row}
+      onPress={() => {
+        playSfx('click');
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}>
       <Text style={styles.label}>{label}</Text>
       <Image
         source={require('@/assets/images/ui/icon-back.webp')}

@@ -20,6 +20,7 @@ import {
   MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
+  SFX_HIT,
   TONGUE_RANGE_BASE,
 } from '@/game/constants';
 import {
@@ -108,6 +109,7 @@ export function killEnemy(state: GameState, index: number, knockVX = 0, knockVY 
   state.enemyDeathVX[index] = knockVX;
   state.enemyDeathVY[index] = knockVY;
 
+  state.sfxFlags |= SFX_HIT;
   state.coins += ENEMY_KILL_COINS;
   spawnFlyer(state, PickupType.Coin, state.enemyX[index], state.enemyY[index] - state.camY);
 }
@@ -186,6 +188,9 @@ export function resetRun(state: GameState, seed: number) {
 
   state.accumulator = 0;
   state.elapsed = 0;
+  // Anything raised on the frame the previous run ended would otherwise fire
+  // one frame into the new one.
+  state.sfxFlags = 0;
 }
 
 /** Frogenetics stats a fresh GameState is seeded with. */
@@ -279,6 +284,7 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
 
     accumulator: 0,
     elapsed: 0,
+    sfxFlags: 0,
 
     platX: new Float32Array(MAX_PLATFORMS),
     platY: new Float32Array(MAX_PLATFORMS),

@@ -354,3 +354,21 @@ export const TONGUE_COLOR = '#E0524B';
 export const TONGUE_TIP_COLOR = '#F59089';
 export const TONGUE_AIM_COLOR = 'rgba(255, 255, 255, 0.8)';
 export const TONGUE_AIM_WIDTH = 3;
+
+// ---------------------------------------------------------------------------
+// Sound cues
+// ---------------------------------------------------------------------------
+
+/**
+ * Bits the simulation raises when something worth hearing happens. The canvas
+ * drains them once per frame and hands them to the audio service in a single
+ * hop to JS.
+ *
+ * A bitmask rather than a queue on purpose: the JS side only needs to know
+ * *whether* a cue fired this frame — two coins picked up in the same frame are
+ * one sound either way — and raising a bit is a single OR with no allocation,
+ * which is the only kind of work a fixed-step loop should be doing.
+ */
+export const SFX_DAMAGE = 1;
+export const SFX_PICKUP = 2;
+export const SFX_HIT = 4;
