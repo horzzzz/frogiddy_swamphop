@@ -194,6 +194,14 @@ export const ENEMY_WINDUP = 0.6;
 export const ENEMY_ATTACK_COOLDOWN = 1.2;
 /** How long a killed enemy's corpse lingers, fading out, before its slot frees. */
 export const ENEMY_DEATH_LINGER = 0.35;
+/**
+ * Knockback a melee kill (the sword swing, not a stomp) sends the corpse off
+ * with — horizontal speed away from the swing and a small upward pop, over the
+ * `ENEMY_DEATH_LINGER` window. A stomp kill gets none of this; the frog's own
+ * bounce already reads as the impact there.
+ */
+export const ENEMY_KNOCKBACK_VX = 130;
+export const ENEMY_KNOCKBACK_VY = -90;
 /** Radius an idle enemy watches for a grounded frog to aggro onto. */
 export const ENEMY_AGGRO_RANGE_X = 90;
 export const ENEMY_AGGRO_RANGE_Y = 60;
@@ -214,6 +222,44 @@ export const STOMP_BOUNCE = 420;
 /** Chance a row with no regular pickup gets a life instead, gated separately by
  *  `state.maxLives` at spawn time so a topped-up run never wastes one. */
 export const LIFE_CHANCE = 0.12;
+
+// ---------------------------------------------------------------------------
+// Currency & rewards
+// ---------------------------------------------------------------------------
+
+/** Coins credited per coin pickup collected. */
+export const COIN_PICKUP_VALUE = 10;
+/** Coins credited for killing an enemy, by any method. */
+export const ENEMY_KILL_COINS = 20;
+
+/**
+ * The "fly to the HUD counter" pickup animation: a cosmetic clone of the
+ * collected icon spins, pops and flies from where it was collected to roughly
+ * where its counter pill sits, then fades out. Purely presentational — the
+ * currency itself is credited immediately at collection time, not when this
+ * finishes.
+ */
+export const MAX_FLYERS = 24;
+export const FLY_DURATION = 0.5;
+/** Full rotations completed over the flight. */
+export const FLY_SPIN_TURNS = 2;
+/** Peak scale-up at the midpoint of the flight, e.g. 0.35 = +35%. */
+export const FLY_POP_SCALE = 0.35;
+/** Fraction of the flight after which alpha starts fading to 0. */
+export const FLY_FADE_START = 0.7;
+
+/**
+ * Approximate design-unit centre of each HUD counter pill, for the flyers
+ * above to aim at. Derived from GameHud's own layout (pause icon 24..60, three
+ * 105-wide pills with 10 gaps: crystal 70..175, life 185..290, coin 300..405)
+ * plus a guess at the safe-area inset the canvas itself never accounts for
+ * (it always starts at the physical top of the screen, HUD's SafeAreaView
+ * doesn't). Doesn't need to be exact — see FLY_FADE_START above.
+ */
+export const HUD_TARGET_Y = 60;
+export const HUD_CRYSTAL_TARGET_X = 122.5;
+export const HUD_LIFE_TARGET_X = 237.5;
+export const HUD_COIN_TARGET_X = 352.5;
 
 // ---------------------------------------------------------------------------
 // Presentation

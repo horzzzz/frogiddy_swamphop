@@ -7,11 +7,17 @@ import {
   DESIGN_HEIGHT,
   DESIGN_WIDTH,
   ENEMY_DEATH_LINGER,
+  ENEMY_KILL_COINS,
   FROG_HALF_H,
   GAP_MIN_RATIO,
+  HUD_COIN_TARGET_X,
+  HUD_CRYSTAL_TARGET_X,
+  HUD_LIFE_TARGET_X,
+  HUD_TARGET_Y,
   JUMP_IMPULSE_MAX_BASE,
   JUMP_IMPULSE_MIN_BASE,
   MAX_ENEMIES,
+  MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   TONGUE_RANGE_BASE,
@@ -19,6 +25,8 @@ import {
 import {
   EnemyState,
   FrogState,
+  PickupType,
+  type PickupTypeValue,
   PLATFORM_SPECS,
   PlatformType,
   TongueState,
@@ -46,8 +54,46 @@ export function clearTongue(state: GameState) {
 }
 
 /**
+ * Sends a cosmetic clone of a collected coin/crystal/life icon flying to
+ * roughly where its HUD counter sits — see `MAX_FLYERS`'s own comment in
+ * constants.ts. Silently does nothing if the pool is full; the currency was
+ * already credited by the caller regardless.
+ *
+ * Declared above `killEnemy`, which calls it, for the ordering reason
+ * documented on `killEnemy` below.
+ */
+export function spawnFlyer(state: GameState, kind: PickupTypeValue, x: number, y: number) {
+  'worklet';
+  let index = -1;
+  for (let i = 0; i < MAX_FLYERS; i += 1) {
+    if (state.flyAlive[i] === 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index === -1) return;
+
+  state.flyAlive[index] = 1;
+  state.flyKind[index] = kind;
+  state.flyElapsed[index] = 0;
+  state.flyStartX[index] = x;
+  state.flyStartY[index] = y;
+  state.flyTargetY[index] = HUD_TARGET_Y;
+  if (kind === PickupType.Crystal) state.flyTargetX[index] = HUD_CRYSTAL_TARGET_X;
+  else if (kind === PickupType.Life) state.flyTargetX[index] = HUD_LIFE_TARGET_X;
+  else state.flyTargetX[index] = HUD_COIN_TARGET_X;
+}
+
+/**
  * Turns a live enemy into a fading corpse. Shared by the sword and the stomp, so
  * a kill always looks and behaves the same regardless of how it happened.
+ * `knockVX`/`knockVY` are the corpse's flight speed while it fades — a stomp
+ * kill leaves them at the default 0 (see `physics.ts`'s stomp check), a melee
+ * kill sends them along the swing (see `triggerAttack` in `tongue.ts`).
+ *
+ * Also banks the flat per-kill coin reward and sends it flying to the coin
+ * counter — centralised here so every kill path pays out the same way without
+ * each call site repeating it.
  *
  * Declared here, above `resetRun`, for the same reason `clearTongue` is: a
  * worklet captures the functions it calls at the moment it is *defined*, not
@@ -55,10 +101,15 @@ export function clearTongue(state: GameState) {
  * and blows up on the first call. This file must never import another game
  * module, which is what keeps it safe to sit at the bottom of that graph.
  */
-export function killEnemy(state: GameState, index: number) {
+export function killEnemy(state: GameState, index: number, knockVX = 0, knockVY = 0) {
   'worklet';
   state.enemyState[index] = EnemyState.Dying;
   state.enemyTimer[index] = ENEMY_DEATH_LINGER;
+  state.enemyDeathVX[index] = knockVX;
+  state.enemyDeathVY[index] = knockVY;
+
+  state.coins += ENEMY_KILL_COINS;
+  spawnFlyer(state, PickupType.Coin, state.enemyX[index], state.enemyY[index] - state.camY);
 }
 
 /** World Y the starting platform is placed at. Arbitrary — everything is relative to it. */
@@ -78,6 +129,7 @@ export function resetRun(state: GameState, seed: number) {
   state.platAlive.fill(0);
   state.pickAlive.fill(0);
   state.enemyAlive.fill(0);
+  state.flyAlive.fill(0);
 
   const spec = PLATFORM_SPECS[PlatformType.Start];
   const platX = (DESIGN_WIDTH - spec.w) / 2;
@@ -250,6 +302,16 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
     enemyOffsetX: new Float32Array(MAX_ENEMIES),
     enemyFacing: new Float32Array(MAX_ENEMIES),
     enemyPhase: new Float32Array(MAX_ENEMIES),
+    enemyDeathVX: new Float32Array(MAX_ENEMIES),
+    enemyDeathVY: new Float32Array(MAX_ENEMIES),
+
+    flyAlive: new Uint8Array(MAX_FLYERS),
+    flyKind: new Int8Array(MAX_FLYERS),
+    flyStartX: new Float32Array(MAX_FLYERS),
+    flyStartY: new Float32Array(MAX_FLYERS),
+    flyTargetX: new Float32Array(MAX_FLYERS),
+    flyTargetY: new Float32Array(MAX_FLYERS),
+    flyElapsed: new Float32Array(MAX_FLYERS),
   };
 
   resetRun(state, 1);

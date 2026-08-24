@@ -1,6 +1,8 @@
 import {
   ATTACK_POSE_DURATION,
   DRAG_THRESHOLD,
+  ENEMY_KNOCKBACK_VX,
+  ENEMY_KNOCKBACK_VY,
   FROG_HALF_H,
   HOLD_TO_AIM_TONGUE,
   MAX_ENEMIES,
@@ -203,7 +205,7 @@ export function triggerAttack(state: GameState) {
     // Enemies dead centre (dx === 0) count as on whichever side the swing faces.
     if (dx !== 0 && Math.sign(dx) !== state.frogFacing) continue;
 
-    killEnemy(state, i);
+    killEnemy(state, i, state.frogFacing * ENEMY_KNOCKBACK_VX, ENEMY_KNOCKBACK_VY);
   }
 }
 

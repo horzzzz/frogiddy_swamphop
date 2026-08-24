@@ -4,26 +4,30 @@ import {
   AIM_MIN_DRAG,
   AIR_DRAG_PER_SECOND,
   BOUNCY_MULTIPLIER,
+  COIN_PICKUP_VALUE,
   DESIGN_WIDTH,
+  FLY_DURATION,
   FROG_HALF_H,
   FROG_HALF_W,
   FROG_HURT_INVULN,
   GRAVITY,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
+  MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
   STOMP_BOUNCE,
 } from '@/game/constants';
-import { clearTongue, killEnemy } from '@/game/state';
+import { clearTongue, killEnemy, spawnFlyer } from '@/game/state';
 import {
   ENEMY_SPECS,
   EnemyState,
   FrogState,
   PLATFORM_SPECS,
   PickupType,
+  type PickupTypeValue,
   PlatformBehaviour,
   type GameState,
   type PlatformSpec,
@@ -294,7 +298,34 @@ export function collectPickups(state: GameState) {
     if (state.pickType[i] === PickupType.Crystal) state.crystals += 1;
     else if (state.pickType[i] === PickupType.Life) {
       state.lives = Math.min(state.maxLives, state.lives + 1);
-    } else state.coins += 1;
+    } else state.coins += COIN_PICKUP_VALUE;
+
+    spawnFlyer(state, state.pickType[i] as PickupTypeValue, state.pickX[i], state.pickY[i] - state.camY);
+  }
+}
+
+/**
+ * Deals contact damage to a frog standing on a Hazard platform (spikes).
+ * Reuses the i-frame timer wholesale rather than adding a second one: landing
+ * on spikes hits the instant `hurtTimer` is at 0, and standing there through a
+ * full invuln window hits again the moment it clears — "leave in time or take
+ * another hit" falls out of that for free.
+ */
+export function stepHazards(state: GameState) {
+  'worklet';
+  if (!state.grounded || state.groundedIndex < 0) return;
+  if (PLATFORM_SPECS[state.platType[state.groundedIndex]].behaviour !== PlatformBehaviour.Hazard) return;
+  if (state.hurtTimer > 0) return;
+  damageFrog(state);
+}
+
+/** Ages every flying pickup-collection icon and frees it once its flight ends. */
+export function stepFlyers(state: GameState, dt: number) {
+  'worklet';
+  for (let i = 0; i < MAX_FLYERS; i += 1) {
+    if (state.flyAlive[i] === 0) continue;
+    state.flyElapsed[i] += dt;
+    if (state.flyElapsed[i] >= FLY_DURATION) state.flyAlive[i] = 0;
   }
 }
 

@@ -31,6 +31,23 @@ export function stepEnemies(state: GameState, dt: number) {
   for (let i = 0; i < MAX_ENEMIES; i += 1) {
     if (state.enemyAlive[i] === 0) continue;
 
+    // A dying corpse no longer rides its platform — it flies off on its own
+    // knockback velocity (zero for a stomp kill, set by `killEnemy` for a
+    // melee one) instead of being snapped back onto the platform's surface
+    // every frame like a living enemy is below. It also outlives its platform
+    // recycling out from under it during the brief linger, which a living
+    // enemy does not.
+    if (state.enemyState[i] === EnemyState.Dying) {
+      state.enemyTimer[i] -= dt;
+      if (state.enemyTimer[i] <= 0) {
+        state.enemyAlive[i] = 0;
+        continue;
+      }
+      state.enemyX[i] = wrapX(state.enemyX[i] + state.enemyDeathVX[i] * dt);
+      state.enemyY[i] += state.enemyDeathVY[i] * dt;
+      continue;
+    }
+
     // Its platform can have recycled or otherwise vanished under it — same
     // defensive check the tongue does when its anchor platform disappears.
     const plat = state.enemyPlat[i];
@@ -48,12 +65,6 @@ export function stepEnemies(state: GameState, dt: number) {
     state.enemyY[i] = surfaceYAt(spec, state.platY[plat], enemyX, left, right) - enemySpec.halfH;
 
     const phase = state.enemyState[i];
-
-    if (phase === EnemyState.Dying) {
-      state.enemyTimer[i] -= dt;
-      if (state.enemyTimer[i] <= 0) state.enemyAlive[i] = 0;
-      continue;
-    }
 
     if (phase === EnemyState.Idle) {
       if (frogInRange(state, state.enemyX[i], state.enemyY[i])) {

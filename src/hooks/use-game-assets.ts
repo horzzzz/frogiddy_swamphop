@@ -62,6 +62,7 @@ export function useGameAssets(attackSprite: number): SharedValue<GameAssets | nu
   const platWall = useImageAsTexture(require('@/assets/images/game/platforms/wall.png'));
   const platSlope = useImageAsTexture(require('@/assets/images/game/platforms/slope.png'));
   const platCorner = useImageAsTexture(require('@/assets/images/game/platforms/corner.png'));
+  const platSpikes = useImageAsTexture(require('@/assets/images/game/platforms/hurty.png'));
 
   const pickCoin = useImageAsTexture(require('@/assets/images/game/pickups/coin.png'));
   const pickCrystal = useImageAsTexture(require('@/assets/images/game/pickups/crystal.png'));
@@ -105,6 +106,7 @@ export function useGameAssets(attackSprite: number): SharedValue<GameAssets | nu
       platWall.value,
       platSlope.value,
       platCorner.value,
+      platSpikes.value,
     ]);
     const pickups = collect([pickCoin.value, pickCrystal.value, pickLife.value]);
     const enemies = collect([

@@ -228,6 +228,15 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     () => ({
       restart: () => {
         gameOverSent.value = false;
+        // The frame callback got deactivated for the Game Over pause, and
+        // Reanimated resets its `timeSinceFirstFrame` clock to 0 the next time
+        // it's reactivated (see FrameCallbackRegistryUI's `startTime = null` on
+        // deactivate). Without this, `lastStatsAt` keeps the previous run's
+        // large leftover value, so `timeSinceFirstFrame - lastStatsAt` goes
+        // negative and the HUD doesn't get another stats push until the new
+        // run's clock climbs back past however long the last run lasted —
+        // which reads as "the counters just don't update after retry".
+        lastStatsAt.value = 0;
         const seed = (Date.now() & 0x7fffffff) || 1;
         runOnUI((nextSeed: number, visibleHeight: number) => {
           'worklet';
@@ -237,7 +246,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         })(seed, viewH);
       },
     }),
-    [gameOverSent, state, viewH]
+    [gameOverSent, lastStatsAt, state, viewH]
   );
 
   // The gesture only records raw facts about the finger. What they mean — jump

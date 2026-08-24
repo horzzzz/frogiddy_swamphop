@@ -34,10 +34,11 @@ import {
  * Relative frequency of each platform type, indexed by PlatformType. `Start` is
  * never generated — it exists only as the opening platform placed by `resetRun`.
  * Wall, slope and corner are chunky masonry, so they stay rarer than the plain
- * ledges or the skyline turns into a brick wall.
+ * ledges or the skyline turns into a brick wall. Spikes is rarer still — it's a
+ * hazard, not scenery, and should read as a surprise, not a fixture.
  */
-const TYPE_WEIGHTS = [11, 18, 20, 13, 10, 10, 0, 6, 6, 6];
-const TOTAL_WEIGHT = 100;
+const TYPE_WEIGHTS = [11, 18, 20, 13, 10, 10, 0, 6, 6, 6, 5];
+const TOTAL_WEIGHT = 105;
 
 function allocPlatform(state: GameState): number {
   'worklet';
@@ -133,6 +134,10 @@ function spawnRow(state: GameState, surfaceY: number) {
   }
 
   state.lastSpawnX = baseX + halfW;
+
+  // Spikes is a hazard and nothing else — it never carries an enemy to fight
+  // on it or a pickup dangling as bait over it, unlike every other type below.
+  if (type === PlatformType.Spikes) return;
 
   // Enemies: never on the opening platform or on Bouncy (you cannot stand and
   // fight where landing itself relaunches you), and not until the run has

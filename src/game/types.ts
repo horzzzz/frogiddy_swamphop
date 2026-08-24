@@ -51,6 +51,8 @@ export const PlatformBehaviour = {
   Static: 0,
   Moving: 1,
   Bouncy: 2,
+  /** Damages the frog on landing, and again roughly every second it stays put. */
+  Hazard: 3,
 } as const;
 export type PlatformBehaviourValue = (typeof PlatformBehaviour)[keyof typeof PlatformBehaviour];
 
@@ -66,6 +68,7 @@ export const PlatformType = {
   Wall: 7,
   Slope: 8,
   Corner: 9,
+  Spikes: 10,
 } as const;
 export type PlatformTypeValue = (typeof PlatformType)[keyof typeof PlatformType];
 
@@ -147,6 +150,10 @@ export const PLATFORM_SPECS: readonly PlatformSpec[] = [
   // Slope climbs left to right, topping out at ~82% of its width.
   { w: 157, h: 83, surfaceY: 71, surfaceRightY: 2, surfaceRamp: 0.82, insetX: 4, behaviour: PlatformBehaviour.Static },
   flat(135, 92, 3, 4), // Corner — the top bar spans the full width
+  // Spikes — dims and surfaceY eyeballed off the art (hurty.png), same aspect
+  // ratio as the exported image; surfaceY sits at the shorter spikes' tip
+  // height. First thing to nudge if landings connect too early or late.
+  flat(135, 91, 17, 10, PlatformBehaviour.Hazard),
 ];
 
 export type PickupSpec = { w: number; h: number };
@@ -339,4 +346,21 @@ export type GameState = {
   enemyFacing: Float32Array;
   /** Per-enemy bob phase offset, same purpose as `pickPhase`. */
   enemyPhase: Float32Array;
+  /** Corpse velocity while `enemyState === Dying`. Zero for a stomp kill —
+   *  only a melee kill sets these. Meaningless once the slot frees. */
+  enemyDeathVX: Float32Array;
+  enemyDeathVY: Float32Array;
+
+  // "Fly to the HUD counter" pickup animation — purely cosmetic, spawned
+  // alongside crediting a coin/crystal/life pickup or an enemy-kill coin
+  // reward. Position/scale/rotation/alpha are derived from `flyElapsed` at
+  // draw time rather than stored, the same way the jump trajectory preview is.
+  flyAlive: Uint8Array;
+  /** A PickupTypeValue — which icon to draw and which counter to aim at. */
+  flyKind: Int8Array;
+  flyStartX: Float32Array;
+  flyStartY: Float32Array;
+  flyTargetX: Float32Array;
+  flyTargetY: Float32Array;
+  flyElapsed: Float32Array;
 };

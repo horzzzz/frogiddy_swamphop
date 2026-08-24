@@ -4,6 +4,10 @@ import {
   DESIGN_WIDTH,
   ENEMY_DEATH_LINGER,
   FIXED_DT,
+  FLY_DURATION,
+  FLY_FADE_START,
+  FLY_POP_SCALE,
+  FLY_SPIN_TURNS,
   FROG_HALF_H,
   FROG_HALF_W,
   FROG_SPRITE_H,
@@ -14,6 +18,7 @@ import {
   AIR_DRAG_PER_SECOND,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
+  MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   PICKUP_BOB,
@@ -412,6 +417,44 @@ function drawAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
  * as a parameter rather than reading `state.elapsed` keeps the dependency that
  * drives the render loop visible at the call site, where it cannot be tidied away.
  */
+/**
+ * The "fly to the HUD counter" pickup animation. Position, scale, rotation and
+ * alpha are all derived fresh from `flyElapsed` every frame — nothing about the
+ * flight is stored — the same way `drawAim`'s trajectory preview works.
+ *
+ * Reuses `assets.pickups`/`PICKUP_SPECS`, the exact same sprites `drawPickups`
+ * draws in the world, so a collected icon visually continues as the same icon
+ * flying to its counter rather than switching art mid-flight.
+ */
+function drawFlyers(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
+  'worklet';
+  for (let i = 0; i < MAX_FLYERS; i += 1) {
+    if (state.flyAlive[i] === 0) continue;
+
+    const p = Math.min(1, state.flyElapsed[i] / FLY_DURATION);
+    // Ease-out: fast start, settling into the counter rather than snapping onto it.
+    const eased = 1 - (1 - p) * (1 - p);
+    const x = state.flyStartX[i] + (state.flyTargetX[i] - state.flyStartX[i]) * eased;
+    const y = state.flyStartY[i] + (state.flyTargetY[i] - state.flyStartY[i]) * eased;
+
+    const pop = 1 + Math.sin(p * Math.PI) * FLY_POP_SCALE;
+    const spinDeg = p * FLY_SPIN_TURNS * 360;
+    const alpha = p < FLY_FADE_START ? 1 : 1 - (p - FLY_FADE_START) / (1 - FLY_FADE_START);
+
+    const spec = PICKUP_SPECS[state.flyKind[i]];
+    const sprite = assets.pickups[state.flyKind[i]];
+
+    s.enemyPaint.setAlphaf(alpha);
+    canvas.save();
+    canvas.translate(x, y);
+    canvas.rotate(spinDeg, 0, 0);
+    canvas.scale(pop, pop);
+    s.dst.setXYWH(-spec.w / 2, -spec.h / 2, spec.w, spec.h);
+    canvas.drawImageRect(sprite.image, sprite.src, s.dst, s.enemyPaint);
+    canvas.restore();
+  }
+}
+
 export function drawScene(
   canvas: SkCanvas,
   state: GameState,
@@ -431,6 +474,7 @@ export function drawScene(
   drawFrog(canvas, state, assets, scratch);
   drawTongueAim(canvas, state, scratch);
   drawAim(canvas, state, scratch);
+  drawFlyers(canvas, state, assets, scratch);
 
   canvas.restore();
 }
