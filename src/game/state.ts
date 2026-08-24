@@ -1,17 +1,20 @@
 import {
   ATTACK_RANGE_X,
   ATTACK_RANGE_Y,
+  BASE_JUMP_HEIGHT,
+  BASE_MAX_LIVES,
   CAMERA_ANCHOR,
   DESIGN_HEIGHT,
   DESIGN_WIDTH,
   ENEMY_DEATH_LINGER,
   FROG_HALF_H,
   GAP_MIN_RATIO,
+  JUMP_IMPULSE_MAX_BASE,
+  JUMP_IMPULSE_MIN_BASE,
   MAX_ENEMIES,
-  MAX_JUMP_HEIGHT,
-  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
+  TONGUE_RANGE_BASE,
 } from '@/game/constants';
 import {
   EnemyState,
@@ -66,7 +69,9 @@ const START_PLATFORM_Y = 700;
  * every pool slot free, generation cursor primed just above the start.
  *
  * A worklet so death can restart the run on the UI thread without a round trip
- * through JS.
+ * through JS. Deliberately does not touch `maxLives`, `tongueRange`,
+ * `jumpImpulseMin/Max` — those are Frogenetics screen setup, same as
+ * `attackRangeX/Y`, and are only ever written by the canvas's setup effects.
  */
 export function resetRun(state: GameState, seed: number) {
   'worklet';
@@ -87,6 +92,7 @@ export function resetRun(state: GameState, seed: number) {
 
   state.frogX = platX + spec.w / 2;
   state.frogY = START_PLATFORM_Y + spec.surfaceY - FROG_HALF_H;
+  state.lastSpawnX = platX;
   state.frogVX = 0;
   state.frogVY = 0;
   state.frogState = FrogState.Idle;
@@ -94,7 +100,7 @@ export function resetRun(state: GameState, seed: number) {
   state.grounded = true;
   state.groundedIndex = 0;
 
-  state.lives = MAX_LIVES;
+  state.lives = state.maxLives;
   state.hurtTimer = 0;
 
   state.camY = state.frogY - state.viewH * CAMERA_ANCHOR;
@@ -122,18 +128,37 @@ export function resetRun(state: GameState, seed: number) {
   state.aimPower = 0;
 
   // The generation cursor tracks surface heights, so start from the surface.
-  state.nextSpawnY = START_PLATFORM_Y + spec.surfaceY - MAX_JUMP_HEIGHT * GAP_MIN_RATIO;
+  state.nextSpawnY = START_PLATFORM_Y + spec.surfaceY - BASE_JUMP_HEIGHT * GAP_MIN_RATIO;
   state.rngState = seed >>> 0 || 1;
 
   state.accumulator = 0;
   state.elapsed = 0;
 }
 
+/** Frogenetics stats a fresh GameState is seeded with. */
+export type GameStateSetup = {
+  maxLives: number;
+  tongueRange: number;
+  jumpImpulseMin: number;
+  jumpImpulseMax: number;
+};
+
+const DEFAULT_SETUP: GameStateSetup = {
+  maxLives: BASE_MAX_LIVES,
+  tongueRange: TONGUE_RANGE_BASE,
+  jumpImpulseMin: JUMP_IMPULSE_MIN_BASE,
+  jumpImpulseMax: JUMP_IMPULSE_MAX_BASE,
+};
+
 /**
  * Allocates the pools once. Called a single time per mounted game screen; after
  * this, `resetRun` recycles the same arrays and nothing else is ever allocated.
+ *
+ * `setup` seeds the Frogenetics-driven fields so the very first run already
+ * reflects purchased upgrades — the canvas's own setup effects run after this
+ * and after `resetRun`, too late for a level that starts mid-jump.
  */
-export function createGameState(): GameState {
+export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameState {
   const state: GameState = {
     frogX: 0,
     frogY: 0,
@@ -144,7 +169,7 @@ export function createGameState(): GameState {
     grounded: false,
     groundedIndex: -1,
 
-    lives: MAX_LIVES,
+    lives: setup.maxLives,
     hurtTimer: 0,
 
     camY: 0,
@@ -183,6 +208,12 @@ export function createGameState(): GameState {
     attackTimer: 0,
     attackRangeX: ATTACK_RANGE_X,
     attackRangeY: ATTACK_RANGE_Y,
+
+    maxLives: setup.maxLives,
+    tongueRange: setup.tongueRange,
+    jumpImpulseMin: setup.jumpImpulseMin,
+    jumpImpulseMax: setup.jumpImpulseMax,
+    lastSpawnX: 0,
 
     aiming: false,
     aimDX: 0,

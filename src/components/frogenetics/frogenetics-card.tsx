@@ -2,18 +2,22 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { FROGENETICS_MAX_LEVEL, upgradePrice, type FrogeneticsUpgrade } from '@/constants/frogenetics';
 import { Menu } from '@/constants/theme';
-import { type FrogeneticsUpgrade } from '@/constants/frogenetics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type FrogeneticsCardProps = {
   upgrade: FrogeneticsUpgrade;
+  level: number;
+  canAfford: boolean;
+  onBuy: () => void;
 };
 
-/** One row in the Frogenetics list: icon, level, name, stat, and a price button (visual only — no purchase logic yet). */
-export function FrogeneticsCard({ upgrade }: FrogeneticsCardProps) {
+/** One row in the Frogenetics list: icon, level, name, stat, and a buy button that levels it up. */
+export function FrogeneticsCard({ upgrade, level, canAfford, onBuy }: FrogeneticsCardProps) {
   const pressed = useSharedValue(0);
+  const maxed = level >= FROGENETICS_MAX_LEVEL;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - pressed.value * 0.03 }],
@@ -26,32 +30,41 @@ export function FrogeneticsCard({ upgrade }: FrogeneticsCardProps) {
           <Image source={upgrade.icon} style={styles.icon} contentFit="contain" />
         </View>
         <View style={styles.text}>
-          <Text style={styles.level}>Level 1</Text>
+          <Text style={styles.level}>{`Level ${level}`}</Text>
           <Text style={styles.name} numberOfLines={1}>
             {upgrade.name}
           </Text>
           <Text style={styles.description}>{upgrade.description}</Text>
-          <Text style={styles.value}>{upgrade.value}</Text>
+          <Text style={styles.value}>{upgrade.formatValue(level)}</Text>
         </View>
       </View>
 
       <AnimatedPressable
         accessibilityRole="button"
-        accessibilityLabel={`Buy ${upgrade.name}`}
-        onPressIn={() => (pressed.value = withTiming(1, { duration: 80 }))}
+        accessibilityLabel={maxed ? `${upgrade.name} maxed out` : `Upgrade ${upgrade.name}`}
+        accessibilityState={{ disabled: maxed }}
+        disabled={maxed}
+        onPress={onBuy}
+        onPressIn={() => !maxed && (pressed.value = withTiming(1, { duration: 80 }))}
         onPressOut={() => (pressed.value = withTiming(0, { duration: 120 }))}
-        style={[styles.button, animatedStyle]}>
+        style={[styles.button, animatedStyle, { opacity: maxed ? 0.5 : canAfford ? 1 : 0.85 }]}>
         <Image
           source={require('@/assets/images/menu/btn-green.webp')}
           style={StyleSheet.absoluteFill}
           contentFit="fill"
         />
-        <Text style={styles.price}>{upgrade.price}</Text>
-        <Image
-          source={require('@/assets/images/menu/icon-coin.webp')}
-          style={styles.priceIcon}
-          contentFit="contain"
-        />
+        {maxed ? (
+          <Text style={styles.price}>MAX</Text>
+        ) : (
+          <>
+            <Text style={styles.price}>{upgradePrice(level)}</Text>
+            <Image
+              source={require('@/assets/images/menu/icon-coin.webp')}
+              style={styles.priceIcon}
+              contentFit="contain"
+            />
+          </>
+        )}
       </AnimatedPressable>
     </View>
   );

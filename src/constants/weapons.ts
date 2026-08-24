@@ -99,8 +99,9 @@ export const WEAPONS: readonly Weapon[] = [
     description: 'Fires magical swamp energy from a safe distance.',
     price: 100,
     icon: require('@/assets/images/arsenal/magic-staff.webp'),
-    // Caps at TONGUE_RANGE (src/game/constants.ts) — no weapon reaches further
-    // than the tongue itself.
+    // Matches the old, pre-Frogenetics tongue reach — still short of a fully
+    // upgraded tongue (TONGUE_RANGE_BASE * 2 in src/constants/frogenetics.ts),
+    // just no longer short of the unupgraded one.
     rangeX: 170,
     rangeY: 85,
     attackSprite: require('@/assets/images/game/frog/attack-magic-staff.png'),

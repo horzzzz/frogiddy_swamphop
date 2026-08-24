@@ -7,20 +7,21 @@ import { GameCanvas, type GameCanvasHandle, type RunStats } from '@/components/g
 import { GameHud } from '@/components/game/game-hud';
 import { MenuButton } from '@/components/menu/menu-button';
 import { GameModal } from '@/components/modal/game-modal';
+import { maxLivesFor } from '@/constants/frogenetics';
 import { Game } from '@/constants/theme';
 import { WEAPONS } from '@/constants/weapons';
-import { MAX_LIVES } from '@/game/constants';
 import { useEconomy } from '@/state/economy';
 
-const EMPTY_RUN: RunStats = { meters: 0, coins: 0, crystals: 0, lives: MAX_LIVES };
+const emptyRun = (maxLives: number): RunStats => ({ meters: 0, coins: 0, crystals: 0, lives: maxLives });
 
 export default function GameScreen() {
   const router = useRouter();
-  const { bestHeight, recordRun, equippedWeapon } = useEconomy();
+  const { bestHeight, recordRun, equippedWeapon, upgrades } = useEconomy();
   const weapon = WEAPONS.find((candidate) => candidate.id === equippedWeapon) ?? null;
+  const maxLives = maxLivesFor(upgrades.body);
 
   const canvas = useRef<GameCanvasHandle>(null);
-  const [stats, setStats] = useState<RunStats>(EMPTY_RUN);
+  const [stats, setStats] = useState<RunStats>(() => emptyRun(maxLives));
   const [paused, setPaused] = useState(false);
   const [gameOver, setGameOver] = useState(false);
 
@@ -35,11 +36,11 @@ export default function GameScreen() {
   );
 
   const handleRestart = useCallback(() => {
-    setStats(EMPTY_RUN);
+    setStats(emptyRun(maxLives));
     setGameOver(false);
     setPaused(false);
     canvas.current?.restart();
-  }, []);
+  }, [maxLives]);
 
   const handleExit = useCallback(() => router.back(), [router]);
 
@@ -51,6 +52,7 @@ export default function GameScreen() {
         ref={canvas}
         paused={paused || gameOver}
         weapon={weapon}
+        upgrades={upgrades}
         onStats={setStats}
         onGameOver={handleGameOver}
       />

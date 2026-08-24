@@ -36,6 +36,7 @@ import { advance } from '@/game/step';
 import { FrogState, TouchMode } from '@/game/types';
 import { useGameAssets } from '@/hooks/use-game-assets';
 import type { Weapon } from '@/constants/weapons';
+import { jumpImpulsesFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
 
 /** How often run totals are pushed to the React HUD. Never once per frame. */
 const STATS_INTERVAL_MS = 100;
@@ -58,12 +59,14 @@ type GameCanvasProps = {
   paused: boolean;
   /** Currently equipped Arsenal weapon, or null for the unarmed default. */
   weapon: Weapon | null;
+  /** Purchased Frogenetics levels — drive max health, tongue reach and jump power. */
+  upgrades: FrogeneticsLevels;
   onStats: (stats: RunStats) => void;
   onGameOver: (stats: RunStats) => void;
 };
 
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { paused, weapon, onStats, onGameOver },
+  { paused, weapon, upgrades, onStats, onGameOver },
   ref
 ) {
   const { width, height } = useWindowDimensions();
@@ -71,6 +74,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const assets = useGameAssets(attackSprite);
   const attackRangeX = weapon?.rangeX ?? ATTACK_RANGE_X;
   const attackRangeY = weapon?.rangeY ?? ATTACK_RANGE_Y;
+  const maxLives = maxLivesFor(upgrades.body);
+  const tongueRange = tongueRangeFor(upgrades.tongue);
+  const jumpImpulses = jumpImpulsesFor(upgrades.legs);
 
   // Scaling is driven by width so the horizontal wrap matches the 430-wide
   // mockups exactly; the visible height in design units then follows from the
@@ -78,9 +84,21 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const scale = width / DESIGN_WIDTH;
   const viewH = height / scale;
 
-  // Allocated once for the lifetime of the screen. Everything after this point
-  // mutates these in place — no allocation happens inside a frame.
-  const initialState = useMemo(() => createGameState(), []);
+  // Allocated once for the lifetime of the screen, seeded with whatever
+  // Frogenetics levels are current at mount so the very first run already
+  // reflects them. Everything after this point mutates these in place — no
+  // allocation happens inside a frame.
+  const initialState = useMemo(
+    () =>
+      createGameState({
+        maxLives,
+        tongueRange,
+        jumpImpulseMin: jumpImpulses.min,
+        jumpImpulseMax: jumpImpulses.max,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
   const state = useSharedValue(initialState);
 
   const scratch = useMemo<RenderScratch>(() => {
@@ -156,6 +174,20 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
       world.attackRangeY = rangeY;
     })(attackRangeX, attackRangeY);
   }, [state, attackRangeX, attackRangeY]);
+
+  // Frogenetics stats, same convention as the attack-range effect above: screen
+  // setup applied on top of whatever createGameState seeded, so a level bought
+  // between runs takes effect without remounting the canvas.
+  useEffect(() => {
+    runOnUI((maxLivesValue: number, tongueRangeValue: number, jumpMin: number, jumpMax: number) => {
+      'worklet';
+      const world = state.value;
+      world.maxLives = maxLivesValue;
+      world.tongueRange = tongueRangeValue;
+      world.jumpImpulseMin = jumpMin;
+      world.jumpImpulseMax = jumpMax;
+    })(maxLives, tongueRange, jumpImpulses.min, jumpImpulses.max);
+  }, [state, maxLives, tongueRange, jumpImpulses]);
 
   const frameCallback = useFrameCallback((info) => {
     'worklet';

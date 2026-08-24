@@ -9,11 +9,8 @@ import {
   FROG_HALF_W,
   FROG_HURT_INVULN,
   GRAVITY,
-  JUMP_IMPULSE_MAX,
-  JUMP_IMPULSE_MIN,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
-  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   MOVING_PLATFORM_SPEED,
@@ -101,7 +98,7 @@ export function applyAim(state: GameState, dragX: number, dragY: number) {
 /** Converts the current aim into velocity and lifts the frog off its platform. */
 export function launchFrog(state: GameState) {
   'worklet';
-  const impulse = JUMP_IMPULSE_MIN + (JUMP_IMPULSE_MAX - JUMP_IMPULSE_MIN) * state.aimPower;
+  const impulse = state.jumpImpulseMin + (state.jumpImpulseMax - state.jumpImpulseMin) * state.aimPower;
 
   state.frogVX = state.aimDX * impulse;
   state.frogVY = state.aimDY * impulse;
@@ -130,7 +127,7 @@ export function land(state: GameState, index: number, surfaceY: number) {
   if (PLATFORM_SPECS[state.platType[index]].behaviour === PlatformBehaviour.Bouncy) {
     // Bouncy platforms relaunch on contact rather than letting you aim again —
     // that is the whole point of "Bouncy higher" in the tutorial.
-    state.frogVY = -JUMP_IMPULSE_MAX * BOUNCY_MULTIPLIER;
+    state.frogVY = -state.jumpImpulseMax * BOUNCY_MULTIPLIER;
     state.grounded = false;
     state.groundedIndex = -1;
     state.frogState = FrogState.Jump;
@@ -296,7 +293,7 @@ export function collectPickups(state: GameState) {
     state.pickAlive[i] = 0;
     if (state.pickType[i] === PickupType.Crystal) state.crystals += 1;
     else if (state.pickType[i] === PickupType.Life) {
-      state.lives = Math.min(MAX_LIVES, state.lives + 1);
+      state.lives = Math.min(state.maxLives, state.lives + 1);
     } else state.coins += 1;
   }
 }

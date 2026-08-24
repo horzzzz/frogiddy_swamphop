@@ -6,11 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FrogeneticsCard } from '@/components/frogenetics/frogenetics-card';
 import { SwampBackground } from '@/components/menu/swamp-background';
 import { TopBar } from '@/components/top-bar';
-import { FROGENETICS_UPGRADES } from '@/constants/frogenetics';
+import { FROGENETICS_UPGRADES, upgradePrice } from '@/constants/frogenetics';
 import { Menu } from '@/constants/theme';
+import { useEconomy } from '@/state/economy';
 
 export default function Frogenetics() {
   const router = useRouter();
+  const { coins, upgrades, buyUpgrade } = useEconomy();
 
   return (
     <SwampBackground>
@@ -32,9 +34,18 @@ export default function Frogenetics() {
               contentFit="cover"
             />
             <View style={styles.cards}>
-              {FROGENETICS_UPGRADES.map((upgrade) => (
-                <FrogeneticsCard key={upgrade.id} upgrade={upgrade} />
-              ))}
+              {FROGENETICS_UPGRADES.map((upgrade) => {
+                const level = upgrades[upgrade.id];
+                return (
+                  <FrogeneticsCard
+                    key={upgrade.id}
+                    upgrade={upgrade}
+                    level={level}
+                    canAfford={coins >= upgradePrice(level)}
+                    onBuy={() => buyUpgrade(upgrade.id)}
+                  />
+                );
+              })}
             </View>
           </View>
         </View>

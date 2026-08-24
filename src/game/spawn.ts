@@ -5,14 +5,14 @@ import {
   ENEMY_CHANCE,
   ENEMY_FREE_HEIGHT,
   ENEMY_TYPE_WEIGHTS,
+  BASE_JUMP_HEIGHT,
   GAP_MAX_RATIO,
   GAP_MIN_RATIO,
   LIFE_CHANCE,
   MAX_ENEMIES,
-  MAX_JUMP_HEIGHT,
-  MAX_LIVES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
+  MAX_SPAWN_DX,
   MOVING_PLATFORM_RANGE,
   PICKUP_CHANCE,
   PICKUP_HEIGHT,
@@ -108,20 +108,31 @@ function spawnRow(state: GameState, surfaceY: number) {
   state.platAlive[index] = 1;
   state.platPhase[index] = randomRange(state, 0, Math.PI * 2);
 
+  // Keep this row's platform within MAX_SPAWN_DX of the row below it, centre to
+  // centre — see the constant's comment for why this stopped being optional once
+  // the jump apex sits this close to the gap ceiling. Falls back to the row's own
+  // centre if the window and the screen edges leave nothing in common (only
+  // possible for the widest platform paired with a tiny MAX_SPAWN_DX).
+  const halfW = spec.w / 2;
+  const minCentre = Math.max(halfW, state.lastSpawnX - MAX_SPAWN_DX);
+  const maxCentre = Math.min(DESIGN_WIDTH - halfW, state.lastSpawnX + MAX_SPAWN_DX);
+  const rowCentre = minCentre <= maxCentre ? randomRange(state, minCentre, maxCentre) : DESIGN_WIDTH / 2;
+  const baseX = Math.min(freeWidth, Math.max(0, rowCentre - halfW));
+
   if (spec.behaviour === PlatformBehaviour.Moving) {
-    // Moving platforms swing about the centre of the row so they never slide
-    // off-screen at the extremes of their travel.
-    const centre = freeWidth / 2;
-    const range = centre * MOVING_PLATFORM_RANGE;
-    state.platBaseX[index] = centre;
+    // Amplitude is capped by whichever screen edge is closer, so a moving
+    // platform anchored near either side still never slides off-screen.
+    const range = Math.min(baseX, freeWidth - baseX) * MOVING_PLATFORM_RANGE;
+    state.platBaseX[index] = baseX;
     state.platRange[index] = range;
-    state.platX[index] = centre + Math.sin(state.platPhase[index]) * range;
+    state.platX[index] = baseX + Math.sin(state.platPhase[index]) * range;
   } else {
-    const x = randomRange(state, 0, freeWidth);
-    state.platBaseX[index] = x;
+    state.platBaseX[index] = baseX;
     state.platRange[index] = 0;
-    state.platX[index] = x;
+    state.platX[index] = baseX;
   }
+
+  state.lastSpawnX = baseX + halfW;
 
   // Enemies: never on the opening platform or on Bouncy (you cannot stand and
   // fight where landing itself relaunches you), and not until the run has
@@ -155,7 +166,7 @@ function spawnRow(state: GameState, surfaceY: number) {
   if (nextRandom(state) >= PICKUP_CHANCE) {
     // No regular pickup this row — a separate, rarer roll for a life, only
     // while under the cap. A life at full health would be a wasted drop.
-    if (state.lives >= MAX_LIVES || nextRandom(state) >= LIFE_CHANCE) return;
+    if (state.lives >= state.maxLives || nextRandom(state) >= LIFE_CHANCE) return;
 
     const lifeIndex = allocPickup(state);
     if (lifeIndex === -1) return;
@@ -182,9 +193,10 @@ function spawnRow(state: GameState, surfaceY: number) {
 /**
  * Generates platforms until the level is filled to `SPAWN_AHEAD` above the camera.
  *
- * Gaps are a fraction of `MAX_JUMP_HEIGHT`, which is itself derived from gravity
- * and jump impulse — so retuning the jump can never leave behind a level with an
- * unreachable gap.
+ * Gaps are a fraction of `BASE_JUMP_HEIGHT`, which is itself derived from gravity
+ * and the level-0 jump impulse — so retuning either can never leave behind a
+ * level with an unreachable gap. Deliberately the base jump, not the upgraded
+ * one; see BASE_JUMP_HEIGHT's own comment.
  */
 export function spawnAhead(state: GameState) {
   'worklet';
@@ -193,8 +205,8 @@ export function spawnAhead(state: GameState) {
     spawnRow(state, state.nextSpawnY);
     state.nextSpawnY -= randomRange(
       state,
-      MAX_JUMP_HEIGHT * GAP_MIN_RATIO,
-      MAX_JUMP_HEIGHT * GAP_MAX_RATIO
+      BASE_JUMP_HEIGHT * GAP_MIN_RATIO,
+      BASE_JUMP_HEIGHT * GAP_MAX_RATIO
     );
   }
 }

@@ -48,20 +48,36 @@ export const FROG_HALF_H = 33;
 export const GRAVITY = 2600;
 export const MAX_FALL_SPEED = 2400;
 
-/** Weakest and strongest slingshot launch, in design units per second. */
-export const JUMP_IMPULSE_MIN = 650;
-export const JUMP_IMPULSE_MAX = 1450;
+/**
+ * Weakest and strongest slingshot launch at Frogenetics level 0, in design units
+ * per second. The live values are `jumpImpulseMin`/`jumpImpulseMax` on the state:
+ * the Legs upgrade scales both by `sqrt(1 + 0.2 * level)`, because apex height
+ * goes as the square of the impulse while the upgrade is sold as "+20% distance".
+ *
+ * 940 puts a full-power straight-up apex at 170 units, a little over the widest
+ * generated gap (150). Much higher and one jump clears two or three rows at once,
+ * which is exactly what this retune replaced. The min keeps the weakest jump at
+ * roughly two thirds of the tightest gap — a lazy flick still reads as a jump
+ * without ever landing one for free.
+ */
+export const JUMP_IMPULSE_MIN_BASE = 590;
+export const JUMP_IMPULSE_MAX_BASE = 940;
 /** Bouncy platforms relaunch you automatically at this multiple of a full-power jump. */
 export const BOUNCY_MULTIPLIER = 1.35;
 /** Horizontal speed bleeds off this fraction per second while airborne. */
 export const AIR_DRAG_PER_SECOND = 0.35;
 
 /**
- * Peak height of a full-power straight-up jump. Platform gaps are derived from
- * this rather than hardcoded, so retuning gravity or impulse cannot silently
- * generate an unreachable level.
+ * Peak height of a full-power straight-up jump at level 0. Platform gaps are
+ * derived from this rather than hardcoded, so retuning gravity or the impulse
+ * cannot silently generate an unreachable level.
+ *
+ * Deliberately the *base* jump, never the upgraded one. If generation followed
+ * the Legs upgrade, buying a level would push the platforms apart by as much as
+ * it added to the jump and the upgrade would cancel itself out; every level above
+ * 0 is pure slack instead.
  */
-export const MAX_JUMP_HEIGHT = (JUMP_IMPULSE_MAX * JUMP_IMPULSE_MAX) / (2 * GRAVITY);
+export const BASE_JUMP_HEIGHT = (JUMP_IMPULSE_MAX_BASE * JUMP_IMPULSE_MAX_BASE) / (2 * GRAVITY);
 
 // ---------------------------------------------------------------------------
 // Slingshot aiming
@@ -97,21 +113,35 @@ export const SPAWN_AHEAD = DESIGN_HEIGHT;
 /** Platforms this far below the bottom of the screen return to the pool. */
 export const DESPAWN_BELOW = 240;
 /**
- * Vertical gap between platforms, as a fraction of MAX_JUMP_HEIGHT.
+ * Vertical gap between platforms, as a fraction of BASE_JUMP_HEIGHT — 100 to 150
+ * design units at the level-0 jump.
  *
- * MAX_JUMP_HEIGHT is the *straight up* apex, so a gap anywhere near it leaves the
- * player almost no freedom: the one-way collision means the apex has to clear the
- * platform, and every unit of horizontal travel is bought with vertical rise.
- * Sweeping angle × power against the narrowest (96 px) platform, the share of
- * aims that land the jump falls off sharply:
+ * Both ends are pinned by something physical rather than by taste. The floor is
+ * the artwork: a platform sprite hangs up to 98 units below its own surface, so
+ * rows closer than ~100 units start drawing through each other. The ceiling is
+ * the ascent: clearing a gap G with an apex H leaves only
+ * `H * sin(2 * acos(sqrt(G / H)))` units of horizontal travel on the way up — 110
+ * units at the widest gap here, 167 at the tightest. Past that the frog runs out
+ * of sideways reach before it runs out of height.
  *
- *   ratio 0.30 → ~8.5%   0.42 → 5.7%   0.55 → 3.5%   0.72 → 1.5%
- *
- * 0.30–0.55 keeps the hardest gap about two and a half times tighter than the
- * easiest, which is a difficulty spread rather than a wall.
+ * That horizontal budget is what `MAX_SPAWN_DX` spends, so the two constants have
+ * to be retuned together.
  */
-export const GAP_MIN_RATIO = 0.3;
-export const GAP_MAX_RATIO = 0.55;
+export const GAP_MIN_RATIO = 0.59;
+export const GAP_MAX_RATIO = 0.88;
+/**
+ * How far a row's platform may sit sideways from the row below it, centre to
+ * centre. Kept under the 110-unit horizontal reach computed above, with each
+ * platform's own width as further slack — a wide ledge can be caught well short
+ * of its centre.
+ *
+ * Without this, every row drew its X from the full 430-wide field, which could
+ * put neighbouring rows 215 units apart. At the old 404-unit apex that was
+ * harmless (the ascent covered ~400 units sideways); at 170 it strands the frog
+ * on a platform with nothing in reach — not a death, just a run that cannot
+ * continue.
+ */
+export const MAX_SPAWN_DX = 100;
 /** Chance a platform carries a pickup above it. */
 export const PICKUP_CHANCE = 0.45;
 /** Of those pickups, the share that are crystals rather than coins. */
@@ -138,7 +168,11 @@ export const PICKUP_BOB_SPEED = 2.4;
 // Enemies & health
 // ---------------------------------------------------------------------------
 
-export const MAX_LIVES = 3;
+/**
+ * Health at Frogenetics level 0. The live cap is `maxLives` on the state; the
+ * Body upgrade adds one per level.
+ */
+export const BASE_MAX_LIVES = 3;
 /** i-frames after taking a hit. Also drives the hit-flash while it counts down. */
 export const FROG_HURT_INVULN = 1;
 
@@ -178,7 +212,7 @@ export const ATTACK_RANGE_Y = 50;
 export const STOMP_BOUNCE = 420;
 
 /** Chance a row with no regular pickup gets a life instead, gated separately by
- *  `MAX_LIVES` at spawn time so a topped-up run never wastes one. */
+ *  `state.maxLives` at spawn time so a topped-up run never wastes one. */
 export const LIFE_CHANCE = 0.12;
 
 // ---------------------------------------------------------------------------
@@ -208,14 +242,16 @@ export const DEBUG_OVERLAY = false;
 // ---------------------------------------------------------------------------
 
 /**
- * Reach of the tongue, deliberately shorter than the widest platform gap (222).
+ * Reach of the tongue at Frogenetics level 0, deliberately shorter than the widest
+ * platform gap (150). The live value is `tongueRange` on the state, scaled +20% of
+ * this per Tongue upgrade level.
  *
  * Nothing in the game rewards speed yet, so a safe repeatable move would crowd
- * out jumping if it could always reach the next ledge. Keeping the reach under
- * the gap range means the tongue saves a jump that fell short — it does not
- * replace the jump.
+ * out jumping if it could always reach the next ledge. Keeping the base reach
+ * under the gap range means the tongue saves a jump that fell short — it does not
+ * replace the jump. Upgrading past the widest gap is the point of buying it.
  */
-export const TONGUE_RANGE = 170;
+export const TONGUE_RANGE_BASE = 130;
 /**
  * Sample spacing for the aim raycast, in design units.
  *

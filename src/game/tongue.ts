@@ -16,7 +16,6 @@ import {
   TONGUE_MOUTH_X,
   TONGUE_MOUTH_Y,
   TONGUE_PULL_SPEED,
-  TONGUE_RANGE,
   TONGUE_RETRACT_SPEED,
 } from '@/game/constants';
 import { applyAim, land, launchFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
@@ -42,7 +41,7 @@ function mouthY(state: GameState): number {
 }
 
 /**
- * Marches a ray from the mouth toward the aim direction, up to `TONGUE_RANGE`,
+ * Marches a ray from the mouth toward the aim direction, up to `state.tongueRange`,
  * and returns whatever it touches first. Records the result in the `tongueAim*`
  * fields so the fire, the preview and the highlight ring all agree.
  *
@@ -73,9 +72,9 @@ export function pickTongueTarget(state: GameState, aimX: number, aimWorldY: numb
   const dirX = length < 1 ? 0 : dx / length;
   const dirY = length < 1 ? -1 : dy / length;
 
-  const steps = Math.ceil(TONGUE_RANGE / TONGUE_MARCH_STEP);
+  const steps = Math.ceil(state.tongueRange / TONGUE_MARCH_STEP);
   for (let step = 1; step <= steps; step += 1) {
-    const t = Math.min(step * TONGUE_MARCH_STEP, TONGUE_RANGE);
+    const t = Math.min(step * TONGUE_MARCH_STEP, state.tongueRange);
     const px = wrapX(originX + dirX * t);
     const py = originY + dirY * t;
 
@@ -118,15 +117,15 @@ export function pickTongueTarget(state: GameState, aimX: number, aimWorldY: numb
 
   state.tongueAimTarget = TongueTarget.None;
   state.tongueAimIndex = -1;
-  state.tongueAimX = wrapX(originX + dirX * TONGUE_RANGE);
-  state.tongueAimY = originY + dirY * TONGUE_RANGE;
+  state.tongueAimX = wrapX(originX + dirX * state.tongueRange);
+  state.tongueAimY = originY + dirY * state.tongueRange;
 }
 
 /**
  * Launches the tongue toward whatever an aim at this point would grab.
  *
  * Reuses `pickTongueTarget`'s result outright: a miss already comes back as the
- * point at full `TONGUE_RANGE` along the aim direction, which is exactly the
+ * point at full `state.tongueRange` along the aim direction, which is exactly the
  * lash-out-and-return the tongue should do when nothing was in its path.
  */
 export function fireTongue(state: GameState, aimX: number, aimWorldY: number) {

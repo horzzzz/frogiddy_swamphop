@@ -274,6 +274,21 @@ export type GameState = {
   attackRangeX: number;
   attackRangeY: number;
 
+  /**
+   * Frogenetics stats. Screen setup, not run state — set from the purchased
+   * upgrade levels and left alone by `resetRun`, same convention as
+   * `attackRangeX/Y` above. `maxLives` is read by `resetRun` itself, since a
+   * fresh run always starts topped up.
+   */
+  maxLives: number;
+  tongueRange: number;
+  jumpImpulseMin: number;
+  jumpImpulseMax: number;
+  /** Centre X of the most recently spawned row's platform, so the next row's
+   *  centre can be kept within jumping distance of it. Run state — reset
+   *  alongside the starting platform. */
+  lastSpawnX: number;
+
   // Slingshot aim.
   aiming: boolean;
   aimDX: number;

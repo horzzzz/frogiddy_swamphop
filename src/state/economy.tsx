@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  DEFAULT_FROGENETICS_LEVELS,
+  FROGENETICS_MAX_LEVEL,
+  type FrogeneticsId,
+  type FrogeneticsLevels,
+  upgradePrice,
+} from '@/constants/frogenetics';
 import { WEAPONS } from '@/constants/weapons';
 
 const STORAGE_KEY = 'frogiddy-swamphop/wallet/v1';
@@ -33,6 +40,8 @@ export type WalletData = {
   crystalsFound: boolean;
   /** True once the player has ever collected coins — unlocks Frogenetics for good, even if spent back to 0. */
   coinsFound: boolean;
+  /** Level 0…FROGENETICS_MAX_LEVEL bought for each Frogenetics stat. */
+  upgrades: FrogeneticsLevels;
 };
 
 const INITIAL_WALLET: WalletData = {
@@ -46,7 +55,14 @@ const INITIAL_WALLET: WalletData = {
   equippedWeapon: null,
   crystalsFound: false,
   coinsFound: false,
+  upgrades: DEFAULT_FROGENETICS_LEVELS,
 };
+
+/** Clamps a persisted upgrade level into 0…FROGENETICS_MAX_LEVEL, defaulting to 0. */
+function reconcileLevel(value: unknown): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(FROGENETICS_MAX_LEVEL, Math.max(0, Math.floor(value as number)));
+}
 
 /** Priciest owned weapon, since price is the reach ladder — or null if none owned. */
 function bestOwnedWeapon(ownedWeapons: string[]): string | null {
@@ -68,6 +84,13 @@ function reconcile(raw: unknown): WalletData {
       ? saved.equippedWeapon
       : bestOwnedWeapon(ownedWeapons);
 
+  const savedUpgrades = (saved.upgrades ?? {}) as Partial<FrogeneticsLevels>;
+  const upgrades: FrogeneticsLevels = {
+    tongue: reconcileLevel(savedUpgrades.tongue),
+    body: reconcileLevel(savedUpgrades.body),
+    legs: reconcileLevel(savedUpgrades.legs),
+  };
+
   return {
     coins: Number.isFinite(saved.coins) ? Math.max(0, Math.floor(saved.coins as number)) : 0,
     crystals: Number.isFinite(saved.crystals) ? Math.max(0, Math.floor(saved.crystals as number)) : 0,
@@ -79,6 +102,7 @@ function reconcile(raw: unknown): WalletData {
     equippedWeapon,
     crystalsFound: saved.crystalsFound === true || (Number.isFinite(saved.crystals) && (saved.crystals as number) > 0),
     coinsFound: saved.coinsFound === true || (Number.isFinite(saved.coins) && (saved.coins as number) > 0),
+    upgrades,
   };
 }
 
@@ -95,6 +119,7 @@ type EconomyContextValue = {
   equippedWeapon: string | null;
   crystalsFound: boolean;
   coinsFound: boolean;
+  upgrades: FrogeneticsLevels;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
   /** Returns false without changing the balance if it would go negative. */
@@ -121,6 +146,12 @@ type EconomyContextValue = {
   buyWeapon: (id: string, price: number) => boolean;
   /** Switches which owned weapon applies in a run. No-ops if `id` isn't owned. */
   equipWeapon: (id: string) => void;
+  /**
+   * Buys the next level of a Frogenetics upgrade with coins. Returns false
+   * without changing anything if it's already at the max level or the balance
+   * is too low.
+   */
+  buyUpgrade: (id: FrogeneticsId) => boolean;
 };
 
 const EconomyContext = createContext<EconomyContextValue | null>(null);
@@ -234,6 +265,23 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     setWallet((prev) => (prev.ownedWeapons.includes(id) ? { ...prev, equippedWeapon: id } : prev));
   }, []);
 
+  const buyUpgrade = useCallback((id: FrogeneticsId) => {
+    let ok = false;
+    setWallet((prev) => {
+      const level = prev.upgrades[id];
+      if (level >= FROGENETICS_MAX_LEVEL) return prev;
+      const price = upgradePrice(level);
+      if (prev.coins < price) return prev;
+      ok = true;
+      return {
+        ...prev,
+        coins: prev.coins - price,
+        upgrades: { ...prev.upgrades, [id]: level + 1 },
+      };
+    });
+    return ok;
+  }, []);
+
   const value = useMemo<EconomyContextValue>(
     () => ({
       ready,
@@ -247,6 +295,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       equippedWeapon: wallet.equippedWeapon,
       crystalsFound: wallet.crystalsFound,
       coinsFound: wallet.coinsFound,
+      upgrades: wallet.upgrades,
       addCoins,
       spendCoins,
       claimDailyBonus,
@@ -255,6 +304,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       spinWheel,
       buyWeapon,
       equipWeapon,
+      buyUpgrade,
     }),
     [
       ready,
@@ -267,6 +317,7 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       spinWheel,
       buyWeapon,
       equipWeapon,
+      buyUpgrade,
     ]
   );
 
