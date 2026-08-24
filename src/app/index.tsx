@@ -15,7 +15,7 @@ import { useEconomy } from '@/state/economy';
 
 export default function Index() {
   const router = useRouter();
-  const { coins } = useEconomy();
+  const { coins, crystals, crystalsFound } = useEconomy();
   const [showDailyBonus, setShowDailyBonus] = useState(false);
 
   return (
@@ -24,7 +24,7 @@ export default function Index() {
         <View style={styles.topRow}>
           <View style={styles.pills}>
             <CounterPill icon={require('@/assets/images/menu/icon-coin.webp')} value={String(coins)} />
-            <CounterPill icon={require('@/assets/images/menu/icon-blu.webp')} value="1" />
+            <CounterPill icon={require('@/assets/images/menu/icon-blu.webp')} value={String(crystals)} />
           </View>
           <Pressable
             accessibilityRole="button"
@@ -57,12 +57,16 @@ export default function Index() {
         <View style={styles.actions}>
           <View >
             <MenuButton label="Play" onPress={() => router.push('/game')} />
-            <MenuButton
-              label="Arsenal"
-              locked
-              hint="Find a Blu to lock"
-              hintIcon={require('@/assets/images/menu/icon-blu.webp')}
-            />
+            {crystalsFound ? (
+              <MenuButton label="Arsenal" onPress={() => router.push('/arsenal')} />
+            ) : (
+              <MenuButton
+                label="Arsenal"
+                locked
+                hint="Find a crystal"
+                hintIcon={require('@/assets/images/menu/icon-blu.webp')}
+              />
+            )}
             <MenuButton
               label="Frogenetics"
               locked

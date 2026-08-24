@@ -19,6 +19,10 @@ export type WalletData = {
   lastDailyBonusAt: number | null;
   freeSpins: number;
   lastWheelSpinAt: number | null;
+  /** Ids of weapons bought in the Arsenal. */
+  ownedWeapons: string[];
+  /** True once the player has ever collected crystals — unlocks the Arsenal for good, even if spent back to 0. */
+  crystalsFound: boolean;
 };
 
 const INITIAL_WALLET: WalletData = {
@@ -28,6 +32,8 @@ const INITIAL_WALLET: WalletData = {
   lastDailyBonusAt: null,
   freeSpins: 0,
   lastWheelSpinAt: null,
+  ownedWeapons: [],
+  crystalsFound: false,
 };
 
 /** Merges a persisted blob into the current shape so older saves keep working. */
@@ -42,6 +48,10 @@ function reconcile(raw: unknown): WalletData {
     lastDailyBonusAt: typeof saved.lastDailyBonusAt === 'number' ? saved.lastDailyBonusAt : null,
     freeSpins: Number.isFinite(saved.freeSpins) ? Math.max(0, Math.floor(saved.freeSpins as number)) : 0,
     lastWheelSpinAt: typeof saved.lastWheelSpinAt === 'number' ? saved.lastWheelSpinAt : null,
+    ownedWeapons: Array.isArray(saved.ownedWeapons)
+      ? saved.ownedWeapons.filter((id): id is string => typeof id === 'string')
+      : [],
+    crystalsFound: saved.crystalsFound === true || (Number.isFinite(saved.crystals) && (saved.crystals as number) > 0),
   };
 }
 
@@ -54,6 +64,8 @@ type EconomyContextValue = {
   lastDailyBonusAt: number | null;
   freeSpins: number;
   lastWheelSpinAt: number | null;
+  ownedWeapons: string[];
+  crystalsFound: boolean;
   /** General-purpose primitives for any coin source: quests, wheel, shop refunds, etc. */
   addCoins: (amount: number) => void;
   /** Returns false without changing the balance if it would go negative. */
@@ -71,6 +83,11 @@ type EconomyContextValue = {
    * cooldown. Returns false without changing anything if neither is available.
    */
   spinWheel: () => boolean;
+  /**
+   * Buys one Arsenal weapon with crystals. Returns false without changing
+   * anything if it's already owned or the balance is too low.
+   */
+  buyWeapon: (id: string, price: number) => boolean;
 };
 
 const EconomyContext = createContext<EconomyContextValue | null>(null);
@@ -134,11 +151,13 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordRun = useCallback((coins: number, crystals: number, meters: number) => {
+    const gainedCrystals = Math.max(0, Math.floor(crystals));
     setWallet((prev) => ({
       ...prev,
       coins: prev.coins + Math.max(0, Math.floor(coins)),
-      crystals: prev.crystals + Math.max(0, Math.floor(crystals)),
+      crystals: prev.crystals + gainedCrystals,
       bestHeight: Math.max(prev.bestHeight, meters),
+      crystalsFound: prev.crystalsFound || gainedCrystals > 0,
     }));
   }, []);
 
@@ -161,6 +180,16 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
     return ok;
   }, []);
 
+  const buyWeapon = useCallback((id: string, price: number) => {
+    let ok = false;
+    setWallet((prev) => {
+      if (prev.ownedWeapons.includes(id) || prev.crystals < price) return prev;
+      ok = true;
+      return { ...prev, crystals: prev.crystals - price, ownedWeapons: [...prev.ownedWeapons, id] };
+    });
+    return ok;
+  }, []);
+
   const value = useMemo<EconomyContextValue>(
     () => ({
       ready,
@@ -170,14 +199,27 @@ export function EconomyProvider({ children }: { children: React.ReactNode }) {
       lastDailyBonusAt: wallet.lastDailyBonusAt,
       freeSpins: wallet.freeSpins,
       lastWheelSpinAt: wallet.lastWheelSpinAt,
+      ownedWeapons: wallet.ownedWeapons,
+      crystalsFound: wallet.crystalsFound,
       addCoins,
       spendCoins,
       claimDailyBonus,
       recordRun,
       grantFreeSpins,
       spinWheel,
+      buyWeapon,
     }),
-    [ready, wallet, addCoins, spendCoins, claimDailyBonus, recordRun, grantFreeSpins, spinWheel]
+    [
+      ready,
+      wallet,
+      addCoins,
+      spendCoins,
+      claimDailyBonus,
+      recordRun,
+      grantFreeSpins,
+      spinWheel,
+      buyWeapon,
+    ]
   );
 
   return <EconomyContext.Provider value={value}>{children}</EconomyContext.Provider>;
