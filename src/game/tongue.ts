@@ -5,19 +5,20 @@ import {
   HOLD_TO_AIM_TONGUE,
   MAX_PICKUPS,
   MAX_PLATFORMS,
+  PICKUP_RADIUS,
   TAP_MAX_MOVEMENT,
   TONGUE_ARRIVE,
   TONGUE_COOLDOWN_HIT,
   TONGUE_COOLDOWN_MISS,
   TONGUE_EXTEND_SPEED,
+  TONGUE_MARCH_STEP,
   TONGUE_MOUTH_X,
   TONGUE_MOUTH_Y,
-  TONGUE_PLATFORM_BONUS,
   TONGUE_PULL_SPEED,
   TONGUE_RANGE,
   TONGUE_RETRACT_SPEED,
 } from '@/game/constants';
-import { applyAim, land, launchFrog, wrapX, wrappedDeltaX } from '@/game/physics';
+import { applyAim, land, launchFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
 import { clearTongue } from '@/game/state';
 import {
   PLATFORM_SPECS,
@@ -39,114 +40,107 @@ function mouthY(state: GameState): number {
 }
 
 /**
- * Chooses what a tongue fired at (`aimX`, `aimWorldY`) would grab, and records it
- * in the `tongueAim*` fields.
+ * Marches a ray from the mouth toward the aim direction, up to `TONGUE_RANGE`,
+ * and returns whatever it touches first. Records the result in the `tongueAim*`
+ * fields so the fire, the preview and the highlight ring all agree.
  *
- * Candidates must be inside `TONGUE_RANGE` of the frog; among those, the one
- * nearest the aim point wins, with platforms given a head start. That is what
- * makes the aim forgiving: pointing roughly at something picks it, and pointing
- * into empty space picks whatever is nearest the finger rather than nothing.
+ * This replaces target scoring outright — no nearest-candidate guessing, no
+ * forgiveness cone. The tongue grabs exactly what is in the way of the aimed
+ * direction, nothing more. A platform counts as hit anywhere in its drawn body
+ * (surface down to its sprite's bottom edge), not only along the top surface
+ * line, so aiming at its face or underside grabs it just as aiming at the top
+ * does. If this turns out too unforgiving to play, the fix is a wider forgiving
+ * cone or a scored fallback — deliberately not built until it is known to be
+ * needed.
  *
- * Both the airborne tap and the ground hold come through here, so the two aiming
- * styles can never disagree about what is grabbable.
+ * The march step is small enough that no platform can be skipped: at 4 design
+ * units per sample, the ray cannot cross a full platform body (the thinnest is
+ * 37 units tall, the narrowest under 90 wide) between two samples regardless of
+ * the aim angle.
  */
 export function pickTongueTarget(state: GameState, aimX: number, aimWorldY: number) {
   'worklet';
-  let bestScore = Number.MAX_VALUE;
-  let bestTarget: number = TongueTarget.None;
-  let bestIndex = -1;
-  let bestX = 0;
-  let bestY = 0;
+  const originX = mouthX(state);
+  const originY = mouthY(state);
 
-  for (let i = 0; i < MAX_PLATFORMS; i += 1) {
-    if (state.platAlive[i] === 0) continue;
-    // Grabbing the ledge you are already standing on would be a no-op.
-    if (i === state.groundedIndex) continue;
+  const dx = wrappedDeltaX(originX, aimX);
+  const dy = aimWorldY - originY;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  // Degenerate aim (finger right on the mouth): point straight up rather than
+  // leave the direction undefined.
+  const dirX = length < 1 ? 0 : dx / length;
+  const dirY = length < 1 ? -1 : dy / length;
 
-    const spec = PLATFORM_SPECS[state.platType[i]];
-    const left = state.platX[i] + spec.insetX;
-    const right = state.platX[i] + spec.w - spec.insetX;
+  const steps = Math.ceil(TONGUE_RANGE / TONGUE_MARCH_STEP);
+  for (let step = 1; step <= steps; step += 1) {
+    const t = Math.min(step * TONGUE_MARCH_STEP, TONGUE_RANGE);
+    const px = wrapX(originX + dirX * t);
+    const py = originY + dirY * t;
 
-    // Anchor wherever the player pointed, clamped onto the platform's surface,
-    // so aiming at the far end grabs the far end rather than the middle.
-    const aimOnPlatform = state.platX[i] + wrappedDeltaX(state.platX[i], aimX);
-    const anchorX = Math.min(right, Math.max(left, aimOnPlatform));
+    for (let i = 0; i < MAX_PLATFORMS; i += 1) {
+      if (state.platAlive[i] === 0 || i === state.groundedIndex) continue;
 
-    let anchorY = state.platY[i] + spec.surfaceY;
-    if (spec.surfaceRightY !== spec.surfaceY && right > left) {
-      const along = (anchorX - left) / (right - left);
-      const ramped = Math.min(1, Math.max(0, along / spec.surfaceRamp));
-      anchorY = state.platY[i] + spec.surfaceY + (spec.surfaceRightY - spec.surfaceY) * ramped;
+      const spec = PLATFORM_SPECS[state.platType[i]];
+      const left = state.platX[i] + spec.insetX;
+      const right = state.platX[i] + spec.w - spec.insetX;
+      const onPlatX = state.platX[i] + wrappedDeltaX(state.platX[i], px);
+      if (onPlatX < left || onPlatX > right) continue;
+
+      const topY = surfaceYAt(spec, state.platY[i], onPlatX, left, right);
+      const bottomY = state.platY[i] + spec.h;
+      if (py < topY || py > bottomY) continue;
+
+      // Hit anywhere in the body, but always anchor on the top surface at that
+      // X — the frog lands standing on the platform, not embedded in its side.
+      state.tongueAimTarget = TongueTarget.Platform;
+      state.tongueAimIndex = i;
+      state.tongueAimX = wrapX(onPlatX);
+      state.tongueAimY = topY;
+      return;
     }
 
-    const reachX = wrappedDeltaX(state.frogX, anchorX);
-    const reachY = anchorY - state.frogY;
-    if (reachX * reachX + reachY * reachY > TONGUE_RANGE * TONGUE_RANGE) continue;
+    for (let i = 0; i < MAX_PICKUPS; i += 1) {
+      if (state.pickAlive[i] === 0) continue;
 
-    const dx = wrappedDeltaX(aimX, anchorX);
-    const dy = anchorY - aimWorldY;
-    const score = Math.sqrt(dx * dx + dy * dy) - TONGUE_PLATFORM_BONUS;
-    if (score < bestScore) {
-      bestScore = score;
-      bestTarget = TongueTarget.Platform;
-      bestIndex = i;
-      bestX = anchorX;
-      bestY = anchorY;
-    }
-  }
+      const pdx = wrappedDeltaX(px, state.pickX[i]);
+      const pdy = state.pickY[i] - py;
+      if (pdx * pdx + pdy * pdy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
 
-  for (let i = 0; i < MAX_PICKUPS; i += 1) {
-    if (state.pickAlive[i] === 0) continue;
-
-    const reachX = wrappedDeltaX(state.frogX, state.pickX[i]);
-    const reachY = state.pickY[i] - state.frogY;
-    if (reachX * reachX + reachY * reachY > TONGUE_RANGE * TONGUE_RANGE) continue;
-
-    const dx = wrappedDeltaX(aimX, state.pickX[i]);
-    const dy = state.pickY[i] - aimWorldY;
-    const score = Math.sqrt(dx * dx + dy * dy);
-    if (score < bestScore) {
-      bestScore = score;
-      bestTarget = TongueTarget.Pickup;
-      bestIndex = i;
-      bestX = state.pickX[i];
-      bestY = state.pickY[i];
+      state.tongueAimTarget = TongueTarget.Pickup;
+      state.tongueAimIndex = i;
+      state.tongueAimX = state.pickX[i];
+      state.tongueAimY = state.pickY[i];
+      return;
     }
   }
 
-  state.tongueAimTarget = bestTarget as GameState['tongueAimTarget'];
-  state.tongueAimIndex = bestIndex;
-  state.tongueAimX = wrapX(bestX);
-  state.tongueAimY = bestY;
+  state.tongueAimTarget = TongueTarget.None;
+  state.tongueAimIndex = -1;
+  state.tongueAimX = wrapX(originX + dirX * TONGUE_RANGE);
+  state.tongueAimY = originY + dirY * TONGUE_RANGE;
 }
 
-/** Launches the tongue toward whatever an aim at this point would grab. */
+/**
+ * Launches the tongue toward whatever an aim at this point would grab.
+ *
+ * Reuses `pickTongueTarget`'s result outright: a miss already comes back as the
+ * point at full `TONGUE_RANGE` along the aim direction, which is exactly the
+ * lash-out-and-return the tongue should do when nothing was in its path.
+ */
 export function fireTongue(state: GameState, aimX: number, aimWorldY: number) {
   'worklet';
   pickTongueTarget(state, aimX, aimWorldY);
 
-  if (state.tongueAimTarget === TongueTarget.None) {
-    // Nothing in reach. Lash out to full range and come back anyway: a miss has
-    // to look like a miss, not like a tap that did nothing.
-    const dx = wrappedDeltaX(state.frogX, aimX);
-    const dy = aimWorldY - state.frogY;
-    const length = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-    state.tongueAnchorX = wrapX(state.frogX + (dx / length) * TONGUE_RANGE);
-    state.tongueAnchorY = state.frogY + (dy / length) * TONGUE_RANGE;
-    state.tongueTarget = TongueTarget.None;
-    state.tongueTargetIndex = -1;
-  } else {
-    state.tongueTarget = state.tongueAimTarget;
-    state.tongueTargetIndex = state.tongueAimIndex;
-    state.tongueAnchorX = state.tongueAimX;
-    state.tongueAnchorY = state.tongueAimY;
-    if (state.tongueTarget === TongueTarget.Platform) {
-      // Store the anchor relative to the platform so a moving one carries it.
-      state.tongueAnchorOffsetX = wrappedDeltaX(
-        state.platX[state.tongueTargetIndex],
-        state.tongueAimX
-      );
-    }
+  state.tongueTarget = state.tongueAimTarget;
+  state.tongueTargetIndex = state.tongueAimIndex;
+  state.tongueAnchorX = state.tongueAimX;
+  state.tongueAnchorY = state.tongueAimY;
+  if (state.tongueTarget === TongueTarget.Platform) {
+    // Store the anchor relative to the platform so a moving one carries it.
+    state.tongueAnchorOffsetX = wrappedDeltaX(
+      state.platX[state.tongueTargetIndex],
+      state.tongueAimX
+    );
   }
 
   const facing = wrappedDeltaX(state.frogX, state.tongueAnchorX);

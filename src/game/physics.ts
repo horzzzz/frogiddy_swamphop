@@ -23,6 +23,7 @@ import {
   PickupType,
   PlatformBehaviour,
   type GameState,
+  type PlatformSpec,
 } from '@/game/types';
 
 /** Keeps X inside the play field. The world wraps horizontally, Doodle Jump style. */
@@ -38,6 +39,28 @@ export function wrappedDeltaX(from: number, to: number): number {
   if (dx > DESIGN_WIDTH / 2) dx -= DESIGN_WIDTH;
   else if (dx < -DESIGN_WIDTH / 2) dx += DESIGN_WIDTH;
   return dx;
+}
+
+/**
+ * Surface height of a platform at a given X (already resolved onto the
+ * platform's own, unwrapped number line). Flat for most platforms; ramps
+ * linearly across `surfaceRamp` of the width for the sloped one.
+ *
+ * Shared by the frog's own collision sweep and by the tongue's hit test, so a
+ * grapple always snaps to exactly the surface a normal landing would.
+ */
+export function surfaceYAt(
+  spec: PlatformSpec,
+  platY: number,
+  x: number,
+  left: number,
+  right: number
+): number {
+  'worklet';
+  if (spec.surfaceRightY === spec.surfaceY || right <= left) return platY + spec.surfaceY;
+  const along = (x - left) / (right - left);
+  const ramped = Math.min(1, Math.max(0, along / spec.surfaceRamp));
+  return platY + spec.surfaceY + (spec.surfaceRightY - spec.surfaceY) * ramped;
 }
 
 /**
@@ -195,13 +218,7 @@ export function stepFrog(state: GameState, dt: number) {
     }
     if (!overlaps) continue;
 
-    let surfaceY = state.platY[i] + spec.surfaceY;
-    if (spec.surfaceRightY !== spec.surfaceY && right > left) {
-      const along = (overlapX - left) / (right - left);
-      const ramped = Math.min(1, Math.max(0, along / spec.surfaceRamp));
-      surfaceY = state.platY[i] + spec.surfaceY + (spec.surfaceRightY - spec.surfaceY) * ramped;
-    }
-
+    const surfaceY = surfaceYAt(spec, state.platY[i], overlapX, left, right);
     if (previousBottom > surfaceY || bottom < surfaceY) continue;
 
     // Several platforms can be crossed in one step; the frog stops at the

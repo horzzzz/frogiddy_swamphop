@@ -162,6 +162,17 @@ export const DEBUG_OVERLAY = false;
  * replace the jump.
  */
 export const TONGUE_RANGE = 170;
+/**
+ * Sample spacing for the aim raycast, in design units.
+ *
+ * A ray aimed well into a platform's body cannot be skipped: the thinnest
+ * platform is 37 units tall, comfortably more than a step can move along either
+ * axis. The one shape this cannot rule out is a ray that grazes exactly past a
+ * platform's corner — entering on X right as it is about to enter on Y — which
+ * a discrete march can only ever narrow, not eliminate. This step keeps that
+ * window under a couple of units, which reads as a hit in practice.
+ */
+export const TONGUE_MARCH_STEP = 2;
 export const TONGUE_EXTEND_SPEED = 1500;
 export const TONGUE_RETRACT_SPEED = 2000;
 export const TONGUE_PULL_SPEED = 1150;
@@ -170,8 +181,6 @@ export const TONGUE_ARRIVE = 10;
 /** A hit costs more than a miss — being afraid to try is worse than spamming. */
 export const TONGUE_COOLDOWN_HIT = 0.9;
 export const TONGUE_COOLDOWN_MISS = 0.35;
-/** Platforms outrank pickups by this many design units when scoring targets. */
-export const TONGUE_PLATFORM_BONUS = 45;
 /** Mouth offset from the frog's centre. X is mirrored by facing. */
 export const TONGUE_MOUTH_X = 13;
 export const TONGUE_MOUTH_Y = -3;
