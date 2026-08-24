@@ -39,45 +39,45 @@ function collect(images: (SkImage | null)[]): Sprite[] | null {
  * swapping weapons swaps exactly this one texture — nothing else re-uploads.
  */
 export function useGameAssets(attackSprite: number): SharedValue<GameAssets | null> {
-  const bg = useImageAsTexture(require('@/assets/images/game/bg.png'));
+  const bg = useImageAsTexture(require('@/assets/images/game/bg.webp'));
 
-  const frogIdle = useImageAsTexture(require('@/assets/images/game/frog/idle.png'));
-  const frogJump = useImageAsTexture(require('@/assets/images/game/frog/jump.png'));
-  const frogFall = useImageAsTexture(require('@/assets/images/game/frog/fall.png'));
-  const frogWallLeft = useImageAsTexture(require('@/assets/images/game/frog/wall-left.png'));
-  const frogWallRight = useImageAsTexture(require('@/assets/images/game/frog/wall-right.png'));
-  const frogTongue = useImageAsTexture(require('@/assets/images/game/frog/tongue.png'));
+  const frogIdle = useImageAsTexture(require('@/assets/images/game/frog/idle.webp'));
+  const frogJump = useImageAsTexture(require('@/assets/images/game/frog/jump.webp'));
+  const frogFall = useImageAsTexture(require('@/assets/images/game/frog/fall.webp'));
+  const frogWallLeft = useImageAsTexture(require('@/assets/images/game/frog/wall-left.webp'));
+  const frogWallRight = useImageAsTexture(require('@/assets/images/game/frog/wall-right.webp'));
+  const frogTongue = useImageAsTexture(require('@/assets/images/game/frog/tongue.webp'));
   const frogAttack = useImageAsTexture(attackSprite);
-  const frogHit = useImageAsTexture(require('@/assets/images/game/frog/hit.png'));
-  const frogDead = useImageAsTexture(require('@/assets/images/game/frog/dead.png'));
-  const frogBouncyHit = useImageAsTexture(require('@/assets/images/game/frog/bouncy-hit.png'));
+  const frogHit = useImageAsTexture(require('@/assets/images/game/frog/hit.webp'));
+  const frogDead = useImageAsTexture(require('@/assets/images/game/frog/dead.webp'));
+  const frogBouncyHit = useImageAsTexture(require('@/assets/images/game/frog/bouncy-hit.webp'));
 
-  const platLong = useImageAsTexture(require('@/assets/images/game/platforms/long.png'));
-  const platMedium = useImageAsTexture(require('@/assets/images/game/platforms/medium.png'));
-  const platSmall = useImageAsTexture(require('@/assets/images/game/platforms/small.png'));
-  const platWooden = useImageAsTexture(require('@/assets/images/game/platforms/wooden.png'));
-  const platMoving = useImageAsTexture(require('@/assets/images/game/platforms/moving.png'));
-  const platBouncy = useImageAsTexture(require('@/assets/images/game/platforms/bouncy.png'));
-  const platStart = useImageAsTexture(require('@/assets/images/game/platforms/start.png'));
-  const platWall = useImageAsTexture(require('@/assets/images/game/platforms/wall.png'));
-  const platSlope = useImageAsTexture(require('@/assets/images/game/platforms/slope.png'));
-  const platCorner = useImageAsTexture(require('@/assets/images/game/platforms/corner.png'));
-  const platSpikes = useImageAsTexture(require('@/assets/images/game/platforms/hurty.png'));
+  const platLong = useImageAsTexture(require('@/assets/images/game/platforms/long.webp'));
+  const platMedium = useImageAsTexture(require('@/assets/images/game/platforms/medium.webp'));
+  const platSmall = useImageAsTexture(require('@/assets/images/game/platforms/small.webp'));
+  const platWooden = useImageAsTexture(require('@/assets/images/game/platforms/wooden.webp'));
+  const platMoving = useImageAsTexture(require('@/assets/images/game/platforms/moving.webp'));
+  const platBouncy = useImageAsTexture(require('@/assets/images/game/platforms/bouncy.webp'));
+  const platStart = useImageAsTexture(require('@/assets/images/game/platforms/start.webp'));
+  const platWall = useImageAsTexture(require('@/assets/images/game/platforms/wall.webp'));
+  const platSlope = useImageAsTexture(require('@/assets/images/game/platforms/slope.webp'));
+  const platCorner = useImageAsTexture(require('@/assets/images/game/platforms/corner.webp'));
+  const platSpikes = useImageAsTexture(require('@/assets/images/game/platforms/hurty.webp'));
 
-  const pickCoin = useImageAsTexture(require('@/assets/images/game/pickups/coin.png'));
-  const pickCrystal = useImageAsTexture(require('@/assets/images/game/pickups/crystal.png'));
-  const pickLife = useImageAsTexture(require('@/assets/images/game/pickups/life.png'));
+  const pickCoin = useImageAsTexture(require('@/assets/images/game/pickups/coin.webp'));
+  const pickCrystal = useImageAsTexture(require('@/assets/images/game/pickups/crystal.webp'));
+  const pickLife = useImageAsTexture(require('@/assets/images/game/pickups/life.webp'));
 
   // Enemy order: EnemyType (Swamp, Slime, Mosq) × EnemyPose (Idle, Attack, Dead).
-  const swampIdle = useImageAsTexture(require('@/assets/images/game/enemies/swamp-idle.png'));
-  const swampAttack = useImageAsTexture(require('@/assets/images/game/enemies/swamp-attack.png'));
-  const swampDead = useImageAsTexture(require('@/assets/images/game/enemies/swamp-dead.png'));
-  const slimeIdle = useImageAsTexture(require('@/assets/images/game/enemies/slime-idle.png'));
-  const slimeAttack = useImageAsTexture(require('@/assets/images/game/enemies/slime-attack.png'));
-  const slimeDead = useImageAsTexture(require('@/assets/images/game/enemies/slime-dead.png'));
-  const mosqIdle = useImageAsTexture(require('@/assets/images/game/enemies/mosq-idle.png'));
-  const mosqAttack = useImageAsTexture(require('@/assets/images/game/enemies/mosq-attack.png'));
-  const mosqDead = useImageAsTexture(require('@/assets/images/game/enemies/mosq-dead.png'));
+  const swampIdle = useImageAsTexture(require('@/assets/images/game/enemies/swamp-idle.webp'));
+  const swampAttack = useImageAsTexture(require('@/assets/images/game/enemies/swamp-attack.webp'));
+  const swampDead = useImageAsTexture(require('@/assets/images/game/enemies/swamp-dead.webp'));
+  const slimeIdle = useImageAsTexture(require('@/assets/images/game/enemies/slime-idle.webp'));
+  const slimeAttack = useImageAsTexture(require('@/assets/images/game/enemies/slime-attack.webp'));
+  const slimeDead = useImageAsTexture(require('@/assets/images/game/enemies/slime-dead.webp'));
+  const mosqIdle = useImageAsTexture(require('@/assets/images/game/enemies/mosq-idle.webp'));
+  const mosqAttack = useImageAsTexture(require('@/assets/images/game/enemies/mosq-attack.webp'));
+  const mosqDead = useImageAsTexture(require('@/assets/images/game/enemies/mosq-dead.webp'));
 
   return useDerivedValue<GameAssets | null>(() => {
     const bgImage = bg.value;

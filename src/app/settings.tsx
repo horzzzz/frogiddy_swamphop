@@ -34,7 +34,7 @@ export default function Settings() {
 
         <View style={styles.panel}>
           <Image
-            source={require('@/assets/images/frames/vine-frame.png')}
+            source={require('@/assets/images/frames/vine-frame.webp')}
             style={StyleSheet.absoluteFill}
             contentFit="fill"
           />

@@ -63,7 +63,7 @@ export function GameHud({ meters, highest, coins, crystals, lives, onPause }: Ga
           scale={scale}
         />
         <CounterPill
-          icon={require('@/assets/images/game/pickups/life.png')}
+          icon={require('@/assets/images/game/pickups/life.webp')}
           value={String(lives)}
           width={Game.pillWidth}
           scale={scale}

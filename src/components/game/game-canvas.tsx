@@ -42,7 +42,7 @@ import { jumpImpulsesFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } 
 /** How often run totals are pushed to the React HUD. Never once per frame. */
 const STATS_INTERVAL_MS = 100;
 /** Bare-fisted attack pose — used whenever no Arsenal weapon is equipped. */
-const DEFAULT_ATTACK_SPRITE = require('@/assets/images/game/frog/attack.png');
+const DEFAULT_ATTACK_SPRITE = require('@/assets/images/game/frog/attack.webp');
 
 export type GameCanvasHandle = {
   /** Restarts the run in place, without remounting the canvas or reloading textures. */

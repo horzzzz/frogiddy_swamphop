@@ -55,7 +55,7 @@ export default function Tutorial() {
   return (
     <Pressable style={styles.root} onPress={handleContinue}>
       <Image
-        source={require('@/assets/images/game/bg.png')}
+        source={require('@/assets/images/game/bg.webp')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -79,12 +79,12 @@ export default function Tutorial() {
 
         <View style={styles.scene} pointerEvents="none">
           <Image
-            source={require('@/assets/images/game/platforms/start.png')}
+            source={require('@/assets/images/game/platforms/start.webp')}
             style={styles.platform}
             contentFit="contain"
           />
           <Image
-            source={require('@/assets/images/game/frog/idle.png')}
+            source={require('@/assets/images/game/frog/idle.webp')}
             style={styles.frog}
             contentFit="contain"
           />

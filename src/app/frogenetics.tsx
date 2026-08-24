@@ -23,7 +23,7 @@ export default function Frogenetics() {
 
         <View style={styles.panel}>
           <Image
-            source={require('@/assets/images/frames/vine-frame.png')}
+            source={require('@/assets/images/frames/vine-frame.webp')}
             style={StyleSheet.absoluteFill}
             contentFit="fill"
           />
@@ -57,7 +57,7 @@ export default function Frogenetics() {
 /**
  * The vine-frame art has real border/foliage baked into the image, not a
  * safe transparent inset — this padding was measured against the pixels of
- * vine-frame.png so cards and the hero image sit inside the dark panel
+ * vine-frame.webp so cards and the hero image sit inside the dark panel
  * instead of drawing over the vines.
  */
 const FRAME_INSET_H = 36;

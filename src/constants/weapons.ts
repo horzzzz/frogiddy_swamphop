@@ -31,7 +31,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/bog-dagger.webp'),
     rangeX: 82,
     rangeY: 54,
-    attackSprite: require('@/assets/images/game/frog/attack-bog-dagger.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-bog-dagger.webp'),
   },
   {
     id: 'hollow-sword',
@@ -41,7 +41,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/hollow-sword.webp'),
     rangeX: 95,
     rangeY: 58,
-    attackSprite: require('@/assets/images/game/frog/attack-hollow-sword.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-hollow-sword.webp'),
   },
   {
     id: 'thorn-mace',
@@ -51,7 +51,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/thorn-mace.webp'),
     rangeX: 107,
     rangeY: 62,
-    attackSprite: require('@/assets/images/game/frog/attack-thorn-mace.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-thorn-mace.webp'),
   },
   {
     id: 'crystal-sword',
@@ -61,7 +61,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/crystal-sword.webp'),
     rangeX: 120,
     rangeY: 66,
-    attackSprite: require('@/assets/images/game/frog/attack-crystal-sword.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-crystal-sword.webp'),
   },
   {
     id: 'frog-hammer',
@@ -71,7 +71,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/frog-hammer.webp'),
     rangeX: 132,
     rangeY: 70,
-    attackSprite: require('@/assets/images/game/frog/attack-frog-hammer.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-frog-hammer.webp'),
   },
   {
     id: 'swamp-spear',
@@ -81,7 +81,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/swamp-spear.webp'),
     rangeX: 145,
     rangeY: 74,
-    attackSprite: require('@/assets/images/game/frog/attack-swamp-spear.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-swamp-spear.webp'),
   },
   {
     id: 'vine-whip',
@@ -91,7 +91,7 @@ export const WEAPONS: readonly Weapon[] = [
     icon: require('@/assets/images/arsenal/vine-whip.webp'),
     rangeX: 157,
     rangeY: 79,
-    attackSprite: require('@/assets/images/game/frog/attack-vine-whip.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-vine-whip.webp'),
   },
   {
     id: 'magic-staff',
@@ -104,6 +104,6 @@ export const WEAPONS: readonly Weapon[] = [
     // just no longer short of the unupgraded one.
     rangeX: 170,
     rangeY: 85,
-    attackSprite: require('@/assets/images/game/frog/attack-magic-staff.png'),
+    attackSprite: require('@/assets/images/game/frog/attack-magic-staff.webp'),
   },
 ];
