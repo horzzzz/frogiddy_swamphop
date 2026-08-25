@@ -17,6 +17,7 @@ import {
   useDerivedValue,
   useFrameCallback,
   useSharedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import {
@@ -52,7 +53,7 @@ import { FrogState, TouchMode } from '@/game/types';
 import { useGameAssets } from '@/hooks/use-game-assets';
 import { playSfx } from '@/services/audio';
 import type { Weapon } from '@/constants/weapons';
-import { jumpImpulsesFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
+import { autoJumpImpulseFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
 
 /**
  * How often run totals are pushed to the React HUD, in simulation seconds.
@@ -91,8 +92,14 @@ type GameCanvasProps = {
   paused: boolean;
   /** Currently equipped Arsenal weapon, or null for the unarmed default. */
   weapon: Weapon | null;
-  /** Purchased Frogenetics levels — drive max health, tongue reach and jump power. */
+  /** Purchased Frogenetics levels — drive max health, tongue reach and auto-jump height. */
   upgrades: FrogeneticsLevels;
+  /**
+   * Horizontal input axis from the move joystick, -1..1. A shared value rather
+   * than a prop the simulation reads directly, so the stick's own gesture can
+   * write it on the UI thread without a round trip through React.
+   */
+  moveAxis: SharedValue<number>;
   onStats: (stats: RunStats) => void;
   onGameOver: (stats: RunStats) => void;
   /** Fired once every texture has finished uploading and the first real frame can draw. */
@@ -100,7 +107,7 @@ type GameCanvasProps = {
 };
 
 const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { paused, weapon, upgrades, onStats, onGameOver, onReady },
+  { paused, weapon, upgrades, moveAxis, onStats, onGameOver, onReady },
   ref
 ) {
   const { width, height } = useWindowDimensions();
@@ -110,9 +117,7 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   const attackRangeY = weapon?.rangeY ?? ATTACK_RANGE_Y;
   const maxLives = maxLivesFor(upgrades.body);
   const tongueRange = tongueRangeFor(upgrades.tongue);
-  // Memoised for its identity, not its cost: it lands in a `useEffect` dep array
-  // below, and a fresh object every render would re-dispatch that `runOnUI`.
-  const jumpImpulses = useMemo(() => jumpImpulsesFor(upgrades.legs), [upgrades.legs]);
+  const autoJumpImpulse = autoJumpImpulseFor(upgrades.legs);
 
   // Scaling is driven by width so the horizontal wrap matches the 430-wide
   // mockups exactly; the visible height in design units then follows from the
@@ -129,8 +134,7 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
       createGameState({
         maxLives,
         tongueRange,
-        jumpImpulseMin: jumpImpulses.min,
-        jumpImpulseMax: jumpImpulses.max,
+        autoJumpImpulse,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -140,10 +144,6 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   const scratch = useMemo<RenderScratch>(() => {
     const paint = Skia.Paint();
     paint.setAntiAlias(true);
-
-    const dotPaint = Skia.Paint();
-    dotPaint.setAntiAlias(true);
-    dotPaint.setColor(Skia.Color('#FFFFFF'));
 
     // Stroke widths are in design units; the canvas is scaled once for the whole
     // scene, so they thicken with the rest of the art rather than staying hairline.
@@ -223,7 +223,6 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
 
     return {
       paint,
-      dotPaint,
       tonguePaint,
       tongueTipPaint,
       aimPaint,
@@ -273,19 +272,19 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   // setup applied on top of whatever createGameState seeded, so a level bought
   // between runs takes effect without remounting the canvas.
   useEffect(() => {
-    runOnUI((maxLivesValue: number, tongueRangeValue: number, jumpMin: number, jumpMax: number) => {
+    runOnUI((maxLivesValue: number, tongueRangeValue: number, autoJumpImpulseValue: number) => {
       'worklet';
       const world = state.value;
       world.maxLives = maxLivesValue;
       world.tongueRange = tongueRangeValue;
-      world.jumpImpulseMin = jumpMin;
-      world.jumpImpulseMax = jumpMax;
-    })(maxLives, tongueRange, jumpImpulses.min, jumpImpulses.max);
-  }, [state, maxLives, tongueRange, jumpImpulses]);
+      world.autoJumpImpulse = autoJumpImpulseValue;
+    })(maxLives, tongueRange, autoJumpImpulse);
+  }, [state, maxLives, tongueRange, autoJumpImpulse]);
 
   const frameCallback = useFrameCallback((info) => {
     'worklet';
     const world = state.value;
+    world.moveAxis = moveAxis.value;
     advance(world, (info.timeSincePreviousFrame ?? 16.667) / 1000);
     clock.value = world.elapsed;
 
@@ -367,21 +366,26 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
     [gameOverSent, lastStatsAt, state, viewH]
   );
 
-  // The gesture only records raw facts about the finger. What they mean — jump
-  // drag, tongue aim, attack tap — is decided in the simulation, because a
+  // The gesture only records raw facts about the finger. What they mean —
+  // tongue aim vs. attack tap — is decided in the simulation, because a
   // motionless hold produces no gesture updates and would otherwise never
   // resolve. `onFinalize` handles the release, which is a discrete event.
+  // Capped to one pointer: the move joystick lives in its own sibling view and
+  // never sends its touches here, but a second finger landing on the canvas
+  // itself (e.g. steadying the phone) should not average into this gesture's
+  // coordinates.
   const gesture = useMemo(
     () =>
       Gesture.Pan()
         .minDistance(0)
+        .maxPointers(1)
         .onBegin((event) => {
           'worklet';
           const world = state.value;
           if (world.frogState === FrogState.Dead) return;
 
           world.touchActive = true;
-          world.touchMode = TouchMode.Undecided;
+          world.touchMode = TouchMode.Aim;
           world.touchStartX = event.x / scale;
           world.touchStartY = event.y / scale;
           world.touchX = world.touchStartX;

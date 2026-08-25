@@ -36,8 +36,9 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    // Required by react-native-gesture-handler; the game's slingshot Pan gesture
-    // will not receive touches without it, and expo-router does not add one.
+    // Required by react-native-gesture-handler; the game's tongue-aim and
+    // joystick Pan gestures will not receive touches without it, and
+    // expo-router does not add one.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

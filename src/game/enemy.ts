@@ -8,18 +8,22 @@ import {
 import { damageFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
 import { ENEMY_SPECS, EnemyState, PLATFORM_SPECS, type GameState } from '@/game/types';
 
-/** True while a grounded frog sits within an enemy's aggro/attack radius. */
+/**
+ * True while the frog sits within an enemy's aggro/attack radius — grounded or
+ * airborne alike. The old `grounded` gate made sense when standing still was
+ * the frog's normal state; now that a landing launches on its own, gating
+ * aggro on it would leave enemies unable to ever wind up.
+ */
 function frogInRange(state: GameState, enemyX: number, enemyY: number): boolean {
   'worklet';
-  if (!state.grounded) return false;
   const dx = wrappedDeltaX(enemyX, state.frogX);
   const dy = state.frogY - enemyY;
   return Math.abs(dx) <= ENEMY_AGGRO_RANGE_X && Math.abs(dy) <= ENEMY_AGGRO_RANGE_Y;
 }
 
 /**
- * Advances every enemy: rides its platform, watches for a grounded frog to
- * aggro onto, telegraphs, hits, recovers. Also ticks the frog's i-frames —
+ * Advances every enemy: rides its platform, watches for the frog to come into
+ * range to aggro onto, telegraphs, hits, recovers. Also ticks the frog's i-frames —
  * `stepFrog` returns early while grounded (a resting frog has nothing to
  * integrate), so no per-frame timer can live there. This runs unconditionally
  * every step, so it is the one safe place for it.

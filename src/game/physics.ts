@@ -1,8 +1,4 @@
 import {
-  AIM_MAX_ANGLE,
-  AIM_MAX_DRAG,
-  AIM_MIN_DRAG,
-  AIR_DRAG_PER_SECOND,
   BOUNCY_MULTIPLIER,
   COIN_PICKUP_VALUE,
   DEATH_FX_DURATION,
@@ -21,12 +17,13 @@ import {
   MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
+  MOVE_SPEED_MAX,
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
   SFX_DAMAGE,
   SFX_LAND,
   SFX_PICKUP,
-  STOMP_BOUNCE,
+  STOMP_BOUNCE_MULTIPLIER,
 } from '@/game/constants';
 import { clearTongue, killEnemy, spawnDust, spawnFlyer } from '@/game/state';
 import {
@@ -79,51 +76,19 @@ export function surfaceYAt(
 }
 
 /**
- * Turns a raw finger drag into a clamped launch direction and power, stored on the
- * state. Both the trajectory preview and the actual launch read these fields, so
- * what the player is shown and what they get cannot drift apart.
+ * Fires the automatic Doodle-Jump launch: called once, on the physics step
+ * right after a grounded frog is detected (see `advance` in step.ts), so
+ * `grounded` never survives more than a single fixed step. Purely vertical —
+ * horizontal motion belongs to the move joystick, which `stepFrog` applies
+ * every step regardless of whether the frog is rising or falling.
  */
-export function applyAim(state: GameState, dragX: number, dragY: number) {
+export function launchAutoJump(state: GameState) {
   'worklet';
-  // Slingshot: the frog launches opposite the pull.
-  const dx = -dragX;
-  const dy = -dragY;
-  const length = Math.sqrt(dx * dx + dy * dy);
-
-  if (length < AIM_MIN_DRAG) {
-    state.aiming = false;
-    state.aimPower = 0;
-    return;
-  }
-
-  // Clamp into an upward cone so a stray sideways drag cannot fire the frog off
-  // the screen horizontally, or downward into an instant death.
-  const angleFromUp = Math.atan2(dx / length, -dy / length);
-  const clamped = Math.max(-AIM_MAX_ANGLE, Math.min(AIM_MAX_ANGLE, angleFromUp));
-
-  state.aimDX = Math.sin(clamped);
-  state.aimDY = -Math.cos(clamped);
-  state.aimPower = Math.min(1, (length - AIM_MIN_DRAG) / (AIM_MAX_DRAG - AIM_MIN_DRAG));
-  state.aiming = true;
-}
-
-/** Converts the current aim into velocity and lifts the frog off its platform. */
-export function launchFrog(state: GameState) {
-  'worklet';
-  const impulse = state.jumpImpulseMin + (state.jumpImpulseMax - state.jumpImpulseMin) * state.aimPower;
-
-  state.frogVX = state.aimDX * impulse;
-  state.frogVY = state.aimDY * impulse;
+  state.frogVY = -state.autoJumpImpulse;
   state.grounded = false;
   state.groundedIndex = -1;
   state.frogState = FrogState.Jump;
   state.tongueUsedThisFlight = false;
-
-  if (state.aimDX > 0.05) state.frogFacing = 1;
-  else if (state.aimDX < -0.05) state.frogFacing = -1;
-
-  state.aiming = false;
-  state.aimPower = 0;
 }
 
 /**
@@ -147,9 +112,9 @@ export function land(state: GameState, index: number, surfaceY: number) {
   state.tongueUsedThisFlight = false;
 
   if (PLATFORM_SPECS[state.platType[index]].behaviour === PlatformBehaviour.Bouncy) {
-    // Bouncy platforms relaunch on contact rather than letting you aim again —
-    // that is the whole point of "Bouncy higher" in the tutorial.
-    state.frogVY = -state.jumpImpulseMax * BOUNCY_MULTIPLIER;
+    // Bouncy platforms relaunch on contact rather than waiting for the next
+    // auto-jump — that is the whole point of "Bouncy higher" in the tutorial.
+    state.frogVY = -state.autoJumpImpulse * BOUNCY_MULTIPLIER;
     state.grounded = false;
     state.groundedIndex = -1;
     state.frogState = FrogState.Jump;
@@ -215,7 +180,15 @@ export function stepFrog(state: GameState, dt: number) {
   if (state.frogState === FrogState.Dead) return;
 
   if (state.grounded) {
-    // A grounded frog is inert until the slingshot fires; no gravity, no drift.
+    // Reached two ways: the very first substep after `resetRun` (before
+    // `advance` has had a chance to see a grounded frog and auto-jump it),
+    // and — every time — the same substep a tongue-pull lands. `stepTongue`'s
+    // Pulling phase calls `land` directly, which can set `grounded` mid-substep
+    // after `advance`'s own `launchAutoJump` check already ran for this step;
+    // this is what stops the frog falling through the platform it just landed
+    // on for the rest of that step. `advance` un-grounds it via `launchAutoJump`
+    // at the top of the *next* substep either way, so this never lasts more
+    // than one step.
     state.frogVY = 0;
     return;
   }
@@ -223,7 +196,10 @@ export function stepFrog(state: GameState, dt: number) {
   const previousBottom = state.frogY + FROG_HALF_H;
 
   state.frogVY = Math.min(state.frogVY + GRAVITY * dt, MAX_FALL_SPEED);
-  state.frogVX -= state.frogVX * AIR_DRAG_PER_SECOND * dt;
+  // No drag, no acceleration: the move joystick is a direct speed control, not
+  // a force, so the frog's horizontal position is always exactly where the
+  // stick says it should be.
+  state.frogVX = state.moveAxis * MOVE_SPEED_MAX;
   state.frogX = wrapX(state.frogX + state.frogVX * dt);
   state.frogY += state.frogVY * dt;
 
@@ -256,7 +232,7 @@ export function stepFrog(state: GameState, dt: number) {
     if (previousBottom > headY || bottom < headY) continue;
 
     killEnemy(state, i);
-    state.frogVY = -STOMP_BOUNCE;
+    state.frogVY = -state.autoJumpImpulse * STOMP_BOUNCE_MULTIPLIER;
     state.frogState = FrogState.Jump;
     state.tongueUsedThisFlight = false;
     return;

@@ -20,9 +20,9 @@ export const TUTORIAL_CARDS: TutorialCardData[] = [
   {
     id: 'tongue',
     title: 'Tongue',
-    hint: 'Hold/Tap to grab',
+    hint: 'Hold to aim',
     description:
-      'While on the ground, long-press in the direction you want to reach with your tongue. While in the air, just tap quickly where you want to pull yourself to.',
+      "Your tongue is how you climb — a jump alone never reaches the next ledge. Hold anywhere to aim, drag to steer, and let go to grab. One grab per flight, so pick your shot.",
     color: Tutorial.tongue,
     image: require('@/assets/images/tutorial/tongue.webp'),
     imageWidth: 412,
@@ -33,7 +33,7 @@ export const TUTORIAL_CARDS: TutorialCardData[] = [
     title: 'Attack',
     hint: 'Tap to attack',
     description:
-      'Attack enemies at close range while standing on the ground. Careful — some of your weapons have a shorter reach than your enemies!',
+      'A quick tap near an enemy attacks it — on the ground or in the air. Careful — some of your weapons have a shorter reach than your enemies!',
     color: Tutorial.attack,
     image: require('@/assets/images/tutorial/attack.webp'),
     imageWidth: 378,
@@ -41,10 +41,10 @@ export const TUTORIAL_CARDS: TutorialCardData[] = [
   },
   {
     id: 'jump',
-    title: 'Jump',
-    hint: 'Drag to aim',
+    title: 'Move',
+    hint: 'Auto-jump + stick',
     description:
-      "Pull down with your finger and pick your jump trajectory. Combine it with your tongue mid-flight to land exactly on the platform you need!",
+      'Landing on a platform bounces you automatically — no need to aim it. Use the stick in the corner to steer left and right while you fly.',
     color: Tutorial.jump,
     image: require('@/assets/images/tutorial/jump.webp'),
     imageWidth: 222,
@@ -55,7 +55,7 @@ export const TUTORIAL_CARDS: TutorialCardData[] = [
     title: 'Hurty',
     hint: 'Avoid it',
     description:
-      "Stepping on this platform costs you 1 heart. If you don't jump off in time, you will keep losing hearts until the run is over.",
+      "Bouncing off this platform costs you 1 heart per touch. It relaunches you just like any other, so a single bad landing is a single hit — not a trap you can get stuck in.",
     color: Tutorial.hurty,
     image: require('@/assets/images/tutorial/hurty.webp'),
     imageWidth: 443,

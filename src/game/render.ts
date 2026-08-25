@@ -24,25 +24,19 @@ import {
   DUST_RADIUS_START,
   DUST_SPREAD,
   ENEMY_DEATH_LINGER,
-  FIXED_DT,
   FLY_HOLD,
   FLY_HOLD_SPIN_TURNS,
   FLY_DURATION,
   FLY_FADE_START,
   FLY_POP_SCALE,
   FLY_SPIN_TURNS,
-  FROG_HALF_H,
-  FROG_HALF_W,
   FROG_SPRITE_H,
   FROG_SPRITE_W,
-  GRAVITY,
   HIT_FLASH_ALPHA,
   HIT_FLASH_INTERVAL,
-  AIR_DRAG_PER_SECOND,
   MAX_DEATH_FX,
   MAX_DUST,
   MAX_ENEMIES,
-  MAX_FALL_SPEED,
   MAX_FLYERS,
   MAX_PICKUPS,
   MAX_PLATFORMS,
@@ -56,11 +50,8 @@ import {
   TONGUE_MOUTH_X,
   TONGUE_MOUTH_Y,
   TONGUE_TIP_RADIUS,
-  TRAJECTORY_DOTS,
-  TRAJECTORY_DOT_INTERVAL,
-  TRAJECTORY_DOT_RADIUS,
 } from '@/game/constants';
-import { surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
+import { wrappedDeltaX } from '@/game/physics';
 import {
   ENEMY_SPECS,
   EnemyState,
@@ -148,7 +139,6 @@ export const SKULL_FEATURES_SVG =
  */
 export type RenderScratch = {
   paint: SkPaint;
-  dotPaint: SkPaint;
   /** Stroked, round-capped: the tongue itself. */
   tonguePaint: SkPaint;
   /** Filled: the blob on the end of the tongue. */
@@ -408,74 +398,6 @@ function drawTongueAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
   );
 }
 
-function drawAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
-  'worklet';
-  if (!state.aiming || state.aimPower <= 0) return;
-
-  // The preview runs the same integrator, at the same fixed step, as the real
-  // simulation — so the dotted arc is not an approximation of the jump, it is
-  // the jump. It also runs the same one-way platform collision `stepFrog` does,
-  // so the dots stop exactly where the frog would actually land rather than
-  // running on past it toward the bottom of the screen.
-  const impulse = state.jumpImpulseMin + (state.jumpImpulseMax - state.jumpImpulseMin) * state.aimPower;
-  let vx = state.aimDX * impulse;
-  let vy = state.aimDY * impulse;
-  let worldX = state.frogX;
-  let worldY = state.frogY;
-
-  const substeps = Math.max(1, Math.round(TRAJECTORY_DOT_INTERVAL / FIXED_DT));
-  let landed = false;
-
-  for (let dot = 0; dot < TRAJECTORY_DOTS && !landed; dot += 1) {
-    for (let k = 0; k < substeps && !landed; k += 1) {
-      const previousBottom = worldY + FROG_HALF_H;
-
-      vy = Math.min(vy + GRAVITY * FIXED_DT, MAX_FALL_SPEED);
-      vx -= vx * AIR_DRAG_PER_SECOND * FIXED_DT;
-      worldX = wrapX(worldX + vx * FIXED_DT);
-      worldY += vy * FIXED_DT;
-
-      if (vy <= 0) continue;
-      const bottom = worldY + FROG_HALF_H;
-
-      for (let i = 0; i < MAX_PLATFORMS; i += 1) {
-        if (state.platAlive[i] === 0 || i === state.groundedIndex) continue;
-
-        const spec = PLATFORM_SPECS[state.platType[i]];
-        const left = state.platX[i] + spec.insetX;
-        const right = state.platX[i] + spec.w - spec.insetX;
-
-        let overlapX = 0;
-        let overlaps = false;
-        for (let wrap = -1; wrap <= 1; wrap += 1) {
-          const candidate = worldX + wrap * DESIGN_WIDTH;
-          if (candidate + FROG_HALF_W > left && candidate - FROG_HALF_W < right) {
-            overlapX = candidate;
-            overlaps = true;
-            break;
-          }
-        }
-        if (!overlaps) continue;
-
-        const surfaceY = surfaceYAt(spec, state.platY[i], overlapX, left, right);
-        if (previousBottom > surfaceY || bottom < surfaceY) continue;
-
-        worldY = surfaceY - FROG_HALF_H;
-        landed = true;
-        break;
-      }
-    }
-
-    const screenY = worldY - state.camY;
-    if (screenY > state.viewH) break;
-
-    // Dots fade along the arc so the near end reads as "now" and the far end as
-    // a guess the player should not over-trust.
-    s.dotPaint.setAlphaf(0.85 * (1 - dot / TRAJECTORY_DOTS));
-    canvas.drawCircle(worldX, screenY, TRAJECTORY_DOT_RADIUS, s.dotPaint);
-  }
-}
-
 /**
  * Draws one complete frame. Called from a worklet; touches nothing outside its arguments.
  *
@@ -486,7 +408,7 @@ function drawAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
 /**
  * The "fly to the HUD counter" pickup animation. Position, scale, rotation and
  * alpha are all derived fresh from `flyElapsed` every frame — nothing about the
- * flight is stored — the same way `drawAim`'s trajectory preview works.
+ * flight is stored.
  *
  * Reuses `assets.pickups`/`PICKUP_SPECS`, the exact same sprites `drawPickups`
  * draws in the world, so a collected icon visually continues as the same icon
@@ -541,7 +463,7 @@ function drawFlyers(canvas: SkCanvas, state: GameState, assets: GameAssets, s: R
  * the smoke is one radial-gradient shader reused for every puff — so a kill
  * loads no texture and allocates nothing here. Position, size, alpha and tilt
  * are recomputed from `fxElapsed` every frame rather than stored, the same way
- * `drawFlyers` and `drawAim`'s preview work.
+ * `drawFlyers` works.
  *
  * Unlike the flyers, these hold *world* coordinates and subtract `camY` per
  * frame: a flyer is aiming at a fixed HUD pill and must ignore the camera,
@@ -697,11 +619,10 @@ export function drawScene(
   // spend its short life hidden by whatever caused it.
   drawDust(canvas, state, scratch);
   // Above the world — a departing spirit should never be hidden behind the
-  // corpse it left — but under the aim and the flyers, which are read as
-  // controls and must stay legible through it.
+  // corpse it left — but under the tongue aim and the flyers, which are read
+  // as controls and must stay legible through it.
   drawDeathFx(canvas, state, scratch);
   drawTongueAim(canvas, state, scratch);
-  drawAim(canvas, state, scratch);
   drawFlyers(canvas, state, assets, scratch);
 
   canvas.restore();

@@ -5,9 +5,8 @@ import {
   ENEMY_CHANCE,
   ENEMY_FREE_HEIGHT,
   ENEMY_TYPE_WEIGHTS,
-  BASE_JUMP_HEIGHT,
-  GAP_MAX_RATIO,
-  GAP_MIN_RATIO,
+  GAP_MAX,
+  GAP_MIN,
   LIFE_CHANCE,
   MAX_ENEMIES,
   MAX_PICKUPS,
@@ -209,21 +208,18 @@ function spawnRow(state: GameState, surfaceY: number) {
 /**
  * Generates platforms until the level is filled to `SPAWN_AHEAD` above the camera.
  *
- * Gaps are a fraction of `BASE_JUMP_HEIGHT`, which is itself derived from gravity
- * and the level-0 jump impulse — so retuning either can never leave behind a
- * level with an unreachable gap. Deliberately the base jump, not the upgraded
- * one; see BASE_JUMP_HEIGHT's own comment.
+ * Gaps sit between `GAP_MIN` and `GAP_MAX`, both derived in constants.ts from
+ * the tongue's reach and the base auto-jump apex — so retuning gravity, the
+ * auto-jump impulse or the tongue's base range can never leave behind a level
+ * with an unreachable gap. Deliberately the *base* tongue range, not the
+ * upgraded one; see GAP_MAX's own comment.
  */
 export function spawnAhead(state: GameState) {
   'worklet';
   const horizon = state.camY - SPAWN_AHEAD;
   while (state.nextSpawnY > horizon) {
     spawnRow(state, state.nextSpawnY);
-    state.nextSpawnY -= randomRange(
-      state,
-      BASE_JUMP_HEIGHT * GAP_MIN_RATIO,
-      BASE_JUMP_HEIGHT * GAP_MAX_RATIO
-    );
+    state.nextSpawnY -= randomRange(state, GAP_MIN, GAP_MAX);
   }
 }
 

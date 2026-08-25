@@ -1,14 +1,13 @@
 import {
   ATTACK_POSE_DURATION,
-  DRAG_THRESHOLD,
   ENEMY_KNOCKBACK_VX,
   ENEMY_KNOCKBACK_VY,
   FROG_HALF_H,
-  HOLD_TO_AIM_TONGUE,
   MAX_ENEMIES,
   MAX_PICKUPS,
   MAX_PLATFORMS,
   PICKUP_RADIUS,
+  TAP_MAX_DURATION,
   TAP_MAX_MOVEMENT,
   TONGUE_ARRIVE,
   TONGUE_COOLDOWN_HIT,
@@ -20,7 +19,7 @@ import {
   TONGUE_PULL_SPEED,
   TONGUE_RETRACT_SPEED,
 } from '@/game/constants';
-import { applyAim, land, launchFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
+import { land, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
 import { clearTongue, killEnemy } from '@/game/state';
 import {
   EnemyState,
@@ -163,15 +162,16 @@ export function releaseTongueAim(state: GameState) {
 }
 
 /**
- * Ground tap: swings the sword. The frog cannot turn on the spot for anything
- * but aiming a jump or the tongue, so the swing itself supplies the turn —
- * it faces the nearest threat in range, then the blade reaches everything else
- * on that same side. An enemy behind the turn survives this swing and needs
- * another tap.
+ * Swings the sword, grounded or airborne alike — the frog is rarely grounded
+ * for more than one physics step now, so gating this on `grounded` would make
+ * the weapon nearly unusable. The frog cannot turn on the spot for anything
+ * but aiming the tongue, so the swing itself supplies the turn — it faces the
+ * nearest threat in range, then the blade reaches everything else on that
+ * same side. An enemy behind the turn survives this swing and needs another
+ * tap.
  */
 export function triggerAttack(state: GameState) {
   'worklet';
-  if (!state.grounded) return;
   state.attackTimer = ATTACK_POSE_DURATION;
 
   let nearestIndex = -1;
@@ -218,7 +218,12 @@ function abandonTongue(state: GameState) {
 }
 
 /**
- * Resolves the live touch into a mode and acts on it.
+ * Resolves the live touch into tongue-aim motion. Grounded or airborne makes
+ * no difference any more — the finger has one job — so this starts an aim the
+ * instant a touch lands (subject to the usual idle/cooldown/one-per-flight
+ * gates) and keeps steering it every step the touch stays down. Whether the
+ * touch turns out to have been a tap instead is decided later, on release, by
+ * `endTouch`.
  *
  * This runs in the simulation rather than in the gesture callbacks because
  * `onUpdate` only fires when the finger moves — and a hold is precisely the case
@@ -226,87 +231,46 @@ function abandonTongue(state: GameState) {
  */
 export function resolveTouch(state: GameState) {
   'worklet';
-  if (!state.touchActive) return;
+  if (!state.touchActive || state.touchMode !== TouchMode.Aim) return;
 
-  // The mode is locked for the life of a touch, but losing the ground is an
-  // outside event rather than gesture ambiguity: a bouncy platform can launch
-  // the frog with the finger still down, and a jump aim left running in mid-air
-  // would keep drawing a trajectory the player can no longer use.
-  if (!state.grounded && (state.touchMode === TouchMode.JumpAim || state.touchMode === TouchMode.TongueAim)) {
-    state.aiming = false;
-    if (state.tongueState === TongueState.Aiming) clearTongue(state);
-    state.touchMode = TouchMode.AirTongue;
+  if (
+    state.tongueState === TongueState.Idle &&
+    state.tongueCooldown <= 0 &&
+    !state.tongueUsedThisFlight
+  ) {
+    state.tongueState = TongueState.Aiming;
   }
-
-  if (state.touchMode === TouchMode.Undecided) {
-    if (!state.grounded) {
-      state.touchMode = TouchMode.AirTongue;
-    } else if (state.touchMoved >= DRAG_THRESHOLD) {
-      state.touchMode = TouchMode.JumpAim;
-    } else if (state.elapsed - state.touchStartedAt >= HOLD_TO_AIM_TONGUE) {
-      state.touchMode = TouchMode.TongueAim;
-    }
-  }
-
-  if (state.touchMode === TouchMode.JumpAim) {
-    applyAim(state, state.touchX - state.touchStartX, state.touchY - state.touchStartY);
-    return;
-  }
-
-  if (state.touchMode === TouchMode.TongueAim) {
-    state.aiming = false;
-    if (state.tongueState === TongueState.Idle && state.tongueCooldown <= 0) {
-      state.tongueState = TongueState.Aiming;
-    }
-    if (state.tongueState === TongueState.Aiming) {
-      pickTongueTarget(state, wrapX(state.touchX), state.touchY + state.camY);
-    }
-    return;
-  }
-
-  if (state.touchMode === TouchMode.AirTongue) {
-    // Keeping the finger down re-fires the moment the cooldown clears, aimed
-    // wherever the finger is now. That is what makes "Hold/Tap to grab"
-    // forgiving about timing.
-    if (
-      !state.grounded &&
-      state.tongueState === TongueState.Idle &&
-      state.tongueCooldown <= 0 &&
-      !state.tongueUsedThisFlight
-    ) {
-      fireTongue(state, wrapX(state.touchX), state.touchY + state.camY);
-    }
+  if (state.tongueState === TongueState.Aiming) {
+    pickTongueTarget(state, wrapX(state.touchX), state.touchY + state.camY);
   }
 }
 
 /** Acts on the finger lifting. A discrete event, so the gesture handles it directly. */
 export function endTouch(state: GameState) {
   'worklet';
-  // Resolve once more first. A fast flick can cross the drag threshold and lift
-  // between two simulation steps, and without this the mode would still read as
-  // undecided while the movement already disqualified it from being a tap —
-  // leaving the gesture with nothing to do.
+  // Resolve once more first, so a release that lands between two simulation
+  // steps still gets this step's aim before the tap/aim decision below.
   resolveTouch(state);
 
-  if (state.touchMode === TouchMode.JumpAim) {
-    // `aiming`, not `aimPower`: a drag exactly on the minimum has zero power but
-    // is still a deliberate jump, and should produce the smallest hop rather
-    // than silently nothing.
-    if (state.grounded && state.aiming) launchFrog(state);
-  } else if (state.touchMode === TouchMode.TongueAim) {
-    releaseTongueAim(state);
-  } else if (
-    state.touchMode === TouchMode.Undecided &&
-    state.grounded &&
-    state.touchMoved < TAP_MAX_MOVEMENT
-  ) {
+  // A tap — short and nearly motionless — is the attack; anything longer or
+  // that moved further was always an aim. Both thresholds have to hold: a
+  // slow, still touch is a deliberate long hold, and a fast flick that
+  // travelled is a deliberate swipe, neither of which should swing the sword.
+  const isTap =
+    state.elapsed - state.touchStartedAt < TAP_MAX_DURATION && state.touchMoved < TAP_MAX_MOVEMENT;
+
+  if (isTap) {
+    // The aim may already have started drawing during the short tap window —
+    // put it away rather than firing, so a tap never doubles as a shot.
+    if (state.tongueState === TongueState.Aiming) clearTongue(state);
     triggerAttack(state);
+  } else if (state.tongueState === TongueState.Aiming) {
+    releaseTongueAim(state);
   }
 
   state.touchActive = false;
   state.touchMode = TouchMode.None;
   state.touchMoved = 0;
-  state.aiming = false;
 }
 
 /** Advances the tongue state machine. Returns nothing; motion is written to the state. */

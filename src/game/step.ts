@@ -4,6 +4,7 @@ import { stepEnemies } from '@/game/enemy';
 import {
   checkDeath,
   collectPickups,
+  launchAutoJump,
   stepDeathFx,
   stepDust,
   stepFlyers,
@@ -37,15 +38,23 @@ export function advance(state: GameState, frameDt: number) {
     state.elapsed += FIXED_DT;
 
     // Order matters. Platforms move first so a passenger is carried before its
-    // own integration; the touch is resolved before the tongue so a hold that
-    // just matured fires on this step; while the tongue is pulling it owns the
-    // frog's motion outright, so ordinary gravity is skipped; and enemies react
-    // after the frog has actually moved, so aggro and attacks see this step's
-    // real position, not last step's. Hazards run after enemies so they read
-    // this step's already-ticked i-frame timer; flyers run after pickups so a
-    // flyer spawned this very step still gets a tick, and death effects run
-    // after enemies for the same reason.
+    // own integration. Right after, this step's own auto-jump check fires for
+    // whichever landing happened on the *previous* step — either an ordinary
+    // one, from the tail of `stepFrog`, or a tongue-pull, from the Pulling
+    // phase inside `stepTongue` below — so a grounded frog never survives past
+    // the single step immediately after the one that landed it: that one step
+    // is what lets this step's own ground-only checks (hazards, enemy aggro)
+    // get their one honest look at a standing frog before it launches again.
+    // The touch is resolved before the tongue so a hold that just matured
+    // fires on this step; while the tongue is pulling it owns the frog's
+    // motion outright, so ordinary gravity is skipped; and enemies react after
+    // the frog has actually moved, so aggro and attacks see this step's real
+    // position, not last step's. Hazards run after enemies so they read this
+    // step's already-ticked i-frame timer; flyers run after pickups so a flyer
+    // spawned this very step still gets a tick, and death effects run after
+    // enemies for the same reason.
     stepMovingPlatforms(state, FIXED_DT);
+    if (state.grounded) launchAutoJump(state);
     resolveTouch(state);
     stepTongue(state, FIXED_DT);
     if (state.tongueState !== TongueState.Pulling) stepFrog(state, FIXED_DT);

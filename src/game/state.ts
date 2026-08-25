@@ -1,7 +1,7 @@
 import {
   ATTACK_RANGE_X,
   ATTACK_RANGE_Y,
-  BASE_JUMP_HEIGHT,
+  AUTO_JUMP_IMPULSE_BASE,
   BASE_MAX_LIVES,
   CAMERA_ANCHOR,
   DESIGN_HEIGHT,
@@ -9,13 +9,11 @@ import {
   ENEMY_DEATH_LINGER,
   ENEMY_KILL_COINS,
   FROG_HALF_H,
-  GAP_MIN_RATIO,
+  GAP_MIN,
   HUD_COIN_TARGET_X,
   HUD_CRYSTAL_TARGET_X,
   HUD_LIFE_TARGET_X,
   HUD_TARGET_Y,
-  JUMP_IMPULSE_MAX_BASE,
-  JUMP_IMPULSE_MIN_BASE,
   MAX_DEATH_FX,
   MAX_DUST,
   MAX_ENEMIES,
@@ -187,7 +185,7 @@ const START_PLATFORM_Y = 700;
  *
  * A worklet so death can restart the run on the UI thread without a round trip
  * through JS. Deliberately does not touch `maxLives`, `tongueRange`,
- * `jumpImpulseMin/Max` — those are Frogenetics screen setup, same as
+ * `autoJumpImpulse` — those are Frogenetics screen setup, same as
  * `attackRangeX/Y`, and are only ever written by the canvas's setup effects.
  */
 export function resetRun(state: GameState, seed: number) {
@@ -212,7 +210,10 @@ export function resetRun(state: GameState, seed: number) {
 
   state.frogX = platX + spec.w / 2;
   state.frogY = START_PLATFORM_Y + spec.surfaceY - FROG_HALF_H;
-  state.lastSpawnX = platX;
+  // `spawnRow` always writes the platform's *centre* here — match that, or
+  // the very first generated row starts life offset by half the start
+  // platform's own width.
+  state.lastSpawnX = platX + spec.w / 2;
   state.lastPlatformWasSpikes = 0;
   state.frogVX = 0;
   state.frogVY = 0;
@@ -243,13 +244,10 @@ export function resetRun(state: GameState, seed: number) {
 
   state.attackTimer = 0;
 
-  state.aiming = false;
-  state.aimDX = 0;
-  state.aimDY = 0;
-  state.aimPower = 0;
+  state.moveAxis = 0;
 
   // The generation cursor tracks surface heights, so start from the surface.
-  state.nextSpawnY = START_PLATFORM_Y + spec.surfaceY - BASE_JUMP_HEIGHT * GAP_MIN_RATIO;
+  state.nextSpawnY = START_PLATFORM_Y + spec.surfaceY - GAP_MIN;
   state.rngState = seed >>> 0 || 1;
 
   state.accumulator = 0;
@@ -263,15 +261,13 @@ export function resetRun(state: GameState, seed: number) {
 export type GameStateSetup = {
   maxLives: number;
   tongueRange: number;
-  jumpImpulseMin: number;
-  jumpImpulseMax: number;
+  autoJumpImpulse: number;
 };
 
 const DEFAULT_SETUP: GameStateSetup = {
   maxLives: BASE_MAX_LIVES,
   tongueRange: TONGUE_RANGE_BASE,
-  jumpImpulseMin: JUMP_IMPULSE_MIN_BASE,
-  jumpImpulseMax: JUMP_IMPULSE_MAX_BASE,
+  autoJumpImpulse: AUTO_JUMP_IMPULSE_BASE,
 };
 
 /**
@@ -335,15 +331,10 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
 
     maxLives: setup.maxLives,
     tongueRange: setup.tongueRange,
-    jumpImpulseMin: setup.jumpImpulseMin,
-    jumpImpulseMax: setup.jumpImpulseMax,
+    autoJumpImpulse: setup.autoJumpImpulse,
     lastSpawnX: 0,
     lastPlatformWasSpikes: 0,
-
-    aiming: false,
-    aimDX: 0,
-    aimDY: 0,
-    aimPower: 0,
+    moveAxis: 0,
 
     nextSpawnY: 0,
     rngState: 1,

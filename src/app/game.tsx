@@ -2,9 +2,11 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { GameCanvas, type GameCanvasHandle, type RunStats } from '@/components/game/game-canvas';
 import { GameHud } from '@/components/game/game-hud';
+import { MoveJoystick } from '@/components/game/move-joystick';
 import { MenuButton } from '@/components/menu/menu-button';
 import { GameModal } from '@/components/modal/game-modal';
 import { maxLivesFor } from '@/constants/frogenetics';
@@ -27,6 +29,7 @@ export default function GameScreen() {
   const maxLives = maxLivesFor(upgrades.body);
 
   const canvas = useRef<GameCanvasHandle>(null);
+  const moveAxis = useSharedValue(0);
   const [stats, setStats] = useState<RunStats>(() => emptyRun(maxLives));
   const [paused, setPaused] = useState(false);
   const [gameOver, setGameOver] = useState(false);
@@ -59,9 +62,14 @@ export default function GameScreen() {
     setGameOver(false);
     setPaused(false);
     recordedRef.current = false;
+    // SharedValues are mutable containers by design; the compiler's
+    // immutability check doesn't know that about the value `useSharedValue`
+    // returned, only that it came out of a hook call.
+    // eslint-disable-next-line react-hooks/immutability
+    moveAxis.value = 0;
     canvas.current?.restart();
     reportEvent('game', { action: 'start' });
-  }, [maxLives]);
+  }, [maxLives, moveAxis]);
 
   const handleExit = useCallback(() => {
     // Banks whatever the run has collected so far when leaving mid-run (e.g.
@@ -97,6 +105,7 @@ export default function GameScreen() {
         paused={paused || gameOver}
         weapon={weapon}
         upgrades={upgrades}
+        moveAxis={moveAxis}
         onStats={setStats}
         onGameOver={handleGameOver}
         onReady={handleReady}
@@ -110,9 +119,18 @@ export default function GameScreen() {
           coins={stats.coins}
           crystals={stats.crystals}
           lives={stats.lives}
-          onPause={() => setPaused(true)}
+          onPause={() => {
+            // A finger left on the stick when the modal opens must not keep
+            // driving the frog once it's back — the gesture's own onFinalize
+            // never fires because the modal doesn't steal the touch.
+            // eslint-disable-next-line react-hooks/immutability
+            moveAxis.value = 0;
+            setPaused(true);
+          }}
         />
       )}
+
+      {assetsReady && !paused && !gameOver && <MoveJoystick moveAxis={moveAxis} />}
 
       {!assetsReady && (
         <View style={styles.loading} pointerEvents="none">

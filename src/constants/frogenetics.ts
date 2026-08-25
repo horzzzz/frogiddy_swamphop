@@ -1,4 +1,4 @@
-import { BASE_MAX_LIVES, JUMP_IMPULSE_MAX_BASE, JUMP_IMPULSE_MIN_BASE, PIXELS_PER_METER, TONGUE_RANGE_BASE } from '@/game/constants';
+import { AUTO_JUMP_IMPULSE_BASE, BASE_MAX_LIVES, GRAVITY, PIXELS_PER_METER, TONGUE_RANGE_BASE } from '@/game/constants';
 
 /**
  * The Frogenetics catalog — stat upgrades bought with coins, five levels each.
@@ -40,21 +40,23 @@ export function tongueRangeFor(level: number): number {
 }
 
 /**
- * Apex height goes as impulse², so scaling the *jump distance* by `upgradeScale`
- * means scaling the impulse by its square root.
+ * Apex height goes as impulse², so scaling the *jump height* by `upgradeScale`
+ * means scaling the auto-jump impulse by its square root.
  *
- * Level generation is deliberately pinned to BASE_JUMP_HEIGHT (see that constant
- * in game/constants.ts) and never to this upgraded value — Legs never makes the
- * level itself harder or spawns wider gaps to "catch up" to it. What it buys
- * instead is margin: scaling `min` by the same factor as `max` shrinks how much
- * aim power a jump needs to clear the widest generated gap (150 units) from
- * ~84% at level 0 down to ~10% at level 5. A maxed-out Legs makes a sloppy,
- * half-hearted flick land jumps a level-0 frog could only make by pulling to
- * nearly full power — fewer whiffed jumps, not farther reach for its own sake.
+ * Level generation is deliberately pinned to the base auto-jump (see GAP_MIN/
+ * GAP_MAX in game/constants.ts) and never to this upgraded value — Legs never
+ * makes the level itself harder or spawns wider gaps to "catch up" to it.
+ * Every level bought is pure margin: a slightly taller auto-bounce that closes
+ * a little more of the reach the tongue has to cover on its own.
  */
-export function jumpImpulsesFor(level: number): { min: number; max: number } {
-  const factor = Math.sqrt(upgradeScale(level));
-  return { min: JUMP_IMPULSE_MIN_BASE * factor, max: JUMP_IMPULSE_MAX_BASE * factor };
+export function autoJumpImpulseFor(level: number): number {
+  return AUTO_JUMP_IMPULSE_BASE * Math.sqrt(upgradeScale(level));
+}
+
+/** Peak height of an auto-jump at the given Legs level, for display. */
+export function autoJumpHeightFor(level: number): number {
+  const impulse = autoJumpImpulseFor(level);
+  return (impulse * impulse) / (2 * GRAVITY);
 }
 
 export type FrogeneticsUpgrade = {
@@ -84,8 +86,8 @@ export const FROGENETICS_UPGRADES: readonly FrogeneticsUpgrade[] = [
   {
     id: 'legs',
     name: 'Legs',
-    description: 'Jump Power',
+    description: 'Auto-jump Height',
     icon: require('@/assets/images/frogenetics/icon-legs.webp'),
-    formatValue: (level) => `${Math.round(upgradeScale(level) * 100)}%`,
+    formatValue: (level) => `${(autoJumpHeightFor(level) / PIXELS_PER_METER).toFixed(2)} m`,
   },
 ];

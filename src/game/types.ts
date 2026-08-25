@@ -32,18 +32,15 @@ export const TongueTarget = {
 export type TongueTargetValue = (typeof TongueTarget)[keyof typeof TongueTarget];
 
 /**
- * What the current touch has been resolved to. Resolution happens once per touch
- * and is never revisited — a gesture that changed meaning mid-drag would be
- * impossible to aim.
+ * What the current touch is doing. Jumping is no longer a gesture — a landing
+ * launches on its own — so a finger has only one job: aim the tongue. Whether
+ * it turns out to have been an attack tap instead is decided once, on release,
+ * by how long it stayed down and how far it moved (see `endTouch` in
+ * tongue.ts), not by a mode tracked while the touch is live.
  */
 export const TouchMode = {
   None: 0,
-  /** Down, but not yet long enough or far enough to tell the three apart. */
-  Undecided: 1,
-  JumpAim: 2,
-  TongueAim: 3,
-  AirTongue: 4,
-  Attack: 5,
+  Aim: 1,
 } as const;
 export type TouchModeValue = (typeof TouchMode)[keyof typeof TouchMode];
 
@@ -289,8 +286,7 @@ export type GameState = {
    */
   maxLives: number;
   tongueRange: number;
-  jumpImpulseMin: number;
-  jumpImpulseMax: number;
+  autoJumpImpulse: number;
   /** Centre X of the most recently spawned row's platform, so the next row's
    *  centre can be kept within jumping distance of it. Run state — reset
    *  alongside the starting platform. */
@@ -299,12 +295,12 @@ export type GameState = {
    *  can rule Spikes back out — two hazard rows never land back to back. */
   lastPlatformWasSpikes: number;
 
-  // Slingshot aim.
-  aiming: boolean;
-  aimDX: number;
-  aimDY: number;
-  /** 0…1 power derived from drag length, cached so render and launch agree. */
-  aimPower: number;
+  /**
+   * Horizontal input axis from the move joystick, -1 (left) to 1 (right).
+   * Written once per frame from a shared value on the UI thread — see
+   * `game-canvas.tsx` — and read by `stepFrog` to drive `frogVX` directly.
+   */
+  moveAxis: number;
 
   // Generation cursor: world Y of the next platform to be placed.
   nextSpawnY: number;
@@ -361,7 +357,7 @@ export type GameState = {
   // "Fly to the HUD counter" pickup animation — purely cosmetic, spawned
   // alongside crediting a coin/crystal/life pickup or an enemy-kill coin
   // reward. Position/scale/rotation/alpha are derived from `flyElapsed` at
-  // draw time rather than stored, the same way the jump trajectory preview is.
+  // draw time rather than stored.
   flyAlive: Uint8Array;
   /** A PickupTypeValue — which icon to draw and which counter to aim at. */
   flyKind: Int8Array;
