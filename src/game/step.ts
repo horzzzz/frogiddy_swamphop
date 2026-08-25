@@ -5,6 +5,7 @@ import {
   checkDeath,
   collectPickups,
   stepDeathFx,
+  stepDust,
   stepFlyers,
   stepFrog,
   stepHazards,
@@ -53,6 +54,7 @@ export function advance(state: GameState, frameDt: number) {
     collectPickups(state);
     stepFlyers(state, FIXED_DT);
     stepDeathFx(state, FIXED_DT);
+    stepDust(state, FIXED_DT);
 
     state.accumulator -= FIXED_DT;
     steps += 1;

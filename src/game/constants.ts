@@ -240,12 +240,21 @@ export const ENEMY_KILL_COINS = 20;
  * finishes.
  */
 export const MAX_FLYERS = 24;
-export const FLY_DURATION = 0.5;
-/** Full rotations completed over the flight. */
+/**
+ * The icon spins on the spot before it sets off, so a collection reads as two
+ * beats — "you got this" and then "here is where it goes" — instead of the
+ * pickup immediately smearing toward the HUD where it is hard to identify.
+ */
+export const FLY_HOLD = 0.28;
+/** Hold plus travel. The travel leg keeps its original 0.5s, so the flight feels unchanged. */
+export const FLY_DURATION = FLY_HOLD + 0.5;
+/** Full rotations completed while showing off on the spot. */
+export const FLY_HOLD_SPIN_TURNS = 1.5;
+/** Full rotations completed over the flight itself, continuing from the hold. */
 export const FLY_SPIN_TURNS = 2;
-/** Peak scale-up at the midpoint of the flight, e.g. 0.35 = +35%. */
+/** How far the icon scales up while it spins, e.g. 0.35 = +35%. Shrinks back as it arrives. */
 export const FLY_POP_SCALE = 0.35;
-/** Fraction of the flight after which alpha starts fading to 0. */
+/** Fraction of the *travel* leg after which alpha starts fading to 0. */
 export const FLY_FADE_START = 0.7;
 
 /**
@@ -316,6 +325,49 @@ export const DEATH_FX_SKULL_COLOR = '#F2ECDC';
 export const DEATH_FX_SKULL_DARK_COLOR = '#2C3A2A';
 /** Centre of a smoke puff. The gradient carries it out to fully transparent. */
 export const DEATH_FX_SMOKE_COLOR = '#C9D6C0';
+
+// ---------------------------------------------------------------------------
+// Landing dust
+// ---------------------------------------------------------------------------
+
+/**
+ * The puff kicked up when the frog lands. Spawned from `land`, so the collision
+ * sweep and a tongue grapple onto a platform both get it, and drawn with the
+ * same one-shader-many-puffs approach as the death effect above.
+ *
+ * Short and cheap on purpose: landing is the single most frequent event in the
+ * game, so this has to read at a glance and then get out of the way.
+ */
+export const MAX_DUST = 8;
+export const DUST_DURATION = 0.42;
+/** Puffs per landing, thrown out in left/right pairs — so keep this even. */
+export const DUST_PUFFS = 8;
+/**
+ * How far the outermost pair travels along the surface. Set well past the frog
+ * sprite's half-width (40) on purpose: anything tighter spends the whole effect
+ * hidden behind the frog that caused it.
+ */
+export const DUST_SPREAD = 62;
+/** How high the outermost pair floats by the time it fades. */
+export const DUST_LIFT = 22;
+export const DUST_RADIUS_START = 8;
+export const DUST_RADIUS_END = 22;
+/** Opacity of a puff at birth. They only ever fade from here. */
+export const DUST_ALPHA = 0.72;
+
+/**
+ * Impact speed below which a landing raises nothing at all — a grapple that
+ * barely settles onto a ledge should not puff, and without a floor every
+ * micro-landing would fire the sound too.
+ *
+ * This is the *only* thing impact speed decides. The puff itself is always the
+ * same size: a landing either happened or it didn't, and scaling it by fall
+ * height made the common case too faint to read.
+ */
+export const DUST_MIN_SPEED = 260;
+
+/** Pale silt, lighter than the death smoke so the two never read as the same event. */
+export const DUST_COLOR = '#D8D2BC';
 
 // ---------------------------------------------------------------------------
 // Presentation
@@ -428,3 +480,4 @@ export const TONGUE_AIM_WIDTH = 3;
 export const SFX_DAMAGE = 1;
 export const SFX_PICKUP = 2;
 export const SFX_HIT = 4;
+export const SFX_LAND = 8;

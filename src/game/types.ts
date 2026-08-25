@@ -383,4 +383,12 @@ export type GameState = {
   fxElapsed: Float32Array;
   /** Phase offset that varies the puff spread and sway, so two nearby kills don't look identical. */
   fxSeed: Float32Array;
+
+  // Landing dust — same world-coordinate pool as the death effect above,
+  // spawned by `land`.
+  dustAlive: Uint8Array;
+  dustX: Float32Array;
+  dustY: Float32Array;
+  dustElapsed: Float32Array;
+  dustSeed: Float32Array;
 };

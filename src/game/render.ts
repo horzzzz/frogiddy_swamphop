@@ -16,8 +16,17 @@ import {
   DEATH_FX_SWAY,
   DEATH_FX_TILT,
   DESIGN_WIDTH,
+  DUST_ALPHA,
+  DUST_DURATION,
+  DUST_LIFT,
+  DUST_PUFFS,
+  DUST_RADIUS_END,
+  DUST_RADIUS_START,
+  DUST_SPREAD,
   ENEMY_DEATH_LINGER,
   FIXED_DT,
+  FLY_HOLD,
+  FLY_HOLD_SPIN_TURNS,
   FLY_DURATION,
   FLY_FADE_START,
   FLY_POP_SCALE,
@@ -31,6 +40,7 @@ import {
   HIT_FLASH_INTERVAL,
   AIR_DRAG_PER_SECOND,
   MAX_DEATH_FX,
+  MAX_DUST,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
   MAX_FLYERS,
@@ -159,6 +169,8 @@ export type RenderScratch = {
   skullOutlinePaint: SkPaint;
   /** Filled dark: eye sockets, nose and the gaps between the teeth. */
   skullDarkPaint: SkPaint;
+  /** The landing puff. Same one-shader-many-puffs trick as `smokePaint`, paler. */
+  dustPaint: SkPaint;
   skullPath: SkPath;
   skullFeaturesPath: SkPath;
   dst: SkHostRect;
@@ -485,15 +497,28 @@ function drawFlyers(canvas: SkCanvas, state: GameState, assets: GameAssets, s: R
   for (let i = 0; i < MAX_FLYERS; i += 1) {
     if (state.flyAlive[i] === 0) continue;
 
-    const p = Math.min(1, state.flyElapsed[i] / FLY_DURATION);
+    // Two beats. The icon first spins on the spot, then travels — splitting
+    // them is what lets the player read *what* they picked up before it turns
+    // into a streak heading for the HUD.
+    const elapsed = state.flyElapsed[i];
+    const holdP = Math.min(1, elapsed / FLY_HOLD);
+    const travelP = Math.max(0, Math.min(1, (elapsed - FLY_HOLD) / (FLY_DURATION - FLY_HOLD)));
+
     // Ease-out: fast start, settling into the counter rather than snapping onto it.
-    const eased = 1 - (1 - p) * (1 - p);
+    const eased = 1 - (1 - travelP) * (1 - travelP);
     const x = state.flyStartX[i] + (state.flyTargetX[i] - state.flyStartX[i]) * eased;
     const y = state.flyStartY[i] + (state.flyTargetY[i] - state.flyStartY[i]) * eased;
 
-    const pop = 1 + Math.sin(p * Math.PI) * FLY_POP_SCALE;
-    const spinDeg = p * FLY_SPIN_TURNS * 360;
-    const alpha = p < FLY_FADE_START ? 1 : 1 - (p - FLY_FADE_START) / (1 - FLY_FADE_START);
+    // One continuous rotation across both beats, so the spin never stalls or
+    // restarts at the hand-off from spinning to travelling.
+    const spinDeg = (holdP * FLY_HOLD_SPIN_TURNS + travelP * FLY_SPIN_TURNS) * 360;
+    // Scales up over the first third of the hold, stays big for the rest of the
+    // spin, then shrinks back to normal on the way into the counter.
+    const pop = 1 + FLY_POP_SCALE * Math.min(1, holdP * 3) * (1 - eased);
+    // Keyed off the travel leg, not the whole life, so the icon holds full
+    // opacity while it is spinning and only fades as it arrives.
+    const alpha =
+      travelP < FLY_FADE_START ? 1 : 1 - (travelP - FLY_FADE_START) / (1 - FLY_FADE_START);
 
     const spec = PICKUP_SPECS[state.flyKind[i]];
     const sprite = assets.pickups[state.flyKind[i]];
@@ -600,6 +625,56 @@ function drawDeathFx(canvas: SkCanvas, state: GameState, s: RenderScratch) {
   }
 }
 
+/**
+ * The puff a landing kicks up, fanned out along the surface in left/right pairs.
+ *
+ * Pairs rather than a ring because this is a ground impact: the cloud should
+ * spread sideways away from the feet and curl upward at its edges, not bloom
+ * evenly the way the death burst does.
+ *
+ * Shares the death effect's approach exactly — world coordinates, everything
+ * derived from `dustElapsed`, one gradient shader scaled per puff.
+ */
+function drawDust(canvas: SkCanvas, state: GameState, s: RenderScratch) {
+  'worklet';
+  for (let i = 0; i < MAX_DUST; i += 1) {
+    if (state.dustAlive[i] === 0) continue;
+
+    const screenY = state.dustY[i] - state.camY;
+    if (screenY - DUST_LIFT > state.viewH || screenY + DUST_RADIUS_END < 0) continue;
+
+    const t = Math.min(1, state.dustElapsed[i] / DUST_DURATION);
+    // Ease-out: the impact throws the dust out, then it hangs and thins.
+    const eased = 1 - (1 - t) * (1 - t);
+    const x = state.dustX[i];
+    const seed = state.dustSeed[i];
+
+    for (let p = 0; p < DUST_PUFFS; p += 1) {
+      const side = p % 2 === 0 ? -1 : 1;
+      // Each pair reaches a different distance, so the cloud has some depth
+      // instead of being one row of evenly spaced dots.
+      const lane = (Math.floor(p / 2) + 1) / (DUST_PUFFS / 2);
+      // Deterministic jitter: enough that consecutive landings don't stamp out
+      // an identical shape, without storing anything per puff.
+      const jitter = Math.sin(seed * 12.9898 + p * 4.1) * 0.22;
+
+      const puffX = x + side * DUST_SPREAD * (lane + jitter) * eased;
+      // The further a puff travels the higher it floats, so the cloud curls up
+      // at its edges rather than sliding along a flat line.
+      const puffY = screenY - DUST_LIFT * lane * eased;
+      const radius = DUST_RADIUS_START + (DUST_RADIUS_END - DUST_RADIUS_START) * eased;
+
+      s.dustPaint.setAlphaf(DUST_ALPHA * (1 - t) * (1 - t));
+
+      canvas.save();
+      canvas.translate(puffX, puffY);
+      canvas.scale(radius, radius);
+      canvas.drawCircle(0, 0, 1, s.dustPaint);
+      canvas.restore();
+    }
+  }
+}
+
 export function drawScene(
   canvas: SkCanvas,
   state: GameState,
@@ -617,6 +692,10 @@ export function drawScene(
   drawPickups(canvas, state, assets, scratch, clock);
   drawEnemies(canvas, state, assets, scratch, clock);
   drawFrog(canvas, state, assets, scratch);
+  // In front of the frog, not behind it: the puff is thrown out at the feet of
+  // a sprite 80 units wide, and drawn underneath it the whole effect would
+  // spend its short life hidden by whatever caused it.
+  drawDust(canvas, state, scratch);
   // Above the world — a departing spirit should never be hidden behind the
   // corpse it left — but under the aim and the flyers, which are read as
   // controls and must stay legible through it.

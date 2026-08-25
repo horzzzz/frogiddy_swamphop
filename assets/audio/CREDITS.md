@@ -18,6 +18,13 @@ clip starts or ends with a click. Levels are balanced in code
 | `sfx-lose.m4a` | [Level up, power up, coin get — 13 sounds](https://opengameart.org/content/level-up-power-up-coin-get-13-sounds) (`Downer01.aif`) | wobbleboxx | CC0 |
 | `sfx-wheel.m4a` | Supplied by the project owner (`sfx-wheel.mp3`) | — | — |
 
+## Reused recordings
+
+`sfx-hit.m4a` covers two events. As `hit` it plays at its recorded rate for a
+strike landing on an enemy; as `land` it plays slightly slowed with pitch
+correction off, which drops the same wet squish into the duller thud of a frog
+hitting a platform. Rates live in `src/services/audio.ts` alongside the levels.
+
 ## Music loop
 
 `music-swamp.m4a` is an 80-second cut (8s…88s of the 3-minute original) whose tail

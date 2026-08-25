@@ -7,12 +7,15 @@ import {
   COIN_PICKUP_VALUE,
   DEATH_FX_DURATION,
   DESIGN_WIDTH,
+  DUST_DURATION,
+  DUST_MIN_SPEED,
   FLY_DURATION,
   FROG_HALF_H,
   FROG_HALF_W,
   FROG_HURT_INVULN,
   GRAVITY,
   MAX_DEATH_FX,
+  MAX_DUST,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
   MAX_FLYERS,
@@ -21,10 +24,11 @@ import {
   MOVING_PLATFORM_SPEED,
   PICKUP_RADIUS,
   SFX_DAMAGE,
+  SFX_LAND,
   SFX_PICKUP,
   STOMP_BOUNCE,
 } from '@/game/constants';
-import { clearTongue, killEnemy, spawnFlyer } from '@/game/state';
+import { clearTongue, killEnemy, spawnDust, spawnFlyer } from '@/game/state';
 import {
   ENEMY_SPECS,
   EnemyState,
@@ -128,6 +132,16 @@ export function launchFrog(state: GameState) {
  */
 export function land(state: GameState, index: number, surfaceY: number) {
   'worklet';
+  // Read before anything below zeroes it. Speed is a threshold here, not a
+  // dial: a gentle settle raises neither dust nor sound, and everything above
+  // that line gets the identical puff. Putting it here rather than in the two
+  // callers is what keeps the collision sweep and a tongue grapple announcing a
+  // landing the same way.
+  if (state.frogVY >= DUST_MIN_SPEED) {
+    spawnDust(state, state.frogX, surfaceY, state.elapsed);
+    state.sfxFlags |= SFX_LAND;
+  }
+
   state.frogY = surfaceY - FROG_HALF_H;
   clearTongue(state);
   state.tongueUsedThisFlight = false;
@@ -342,6 +356,16 @@ export function stepDeathFx(state: GameState, dt: number) {
     if (state.fxAlive[i] === 0) continue;
     state.fxElapsed[i] += dt;
     if (state.fxElapsed[i] >= DEATH_FX_DURATION) state.fxAlive[i] = 0;
+  }
+}
+
+/** Ages every landing puff and frees it once it has settled. */
+export function stepDust(state: GameState, dt: number) {
+  'worklet';
+  for (let i = 0; i < MAX_DUST; i += 1) {
+    if (state.dustAlive[i] === 0) continue;
+    state.dustElapsed[i] += dt;
+    if (state.dustElapsed[i] >= DUST_DURATION) state.dustAlive[i] = 0;
   }
 }
 

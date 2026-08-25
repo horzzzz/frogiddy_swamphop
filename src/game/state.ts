@@ -17,6 +17,7 @@ import {
   JUMP_IMPULSE_MAX_BASE,
   JUMP_IMPULSE_MIN_BASE,
   MAX_DEATH_FX,
+  MAX_DUST,
   MAX_ENEMIES,
   MAX_FLYERS,
   MAX_PICKUPS,
@@ -121,6 +122,33 @@ export function spawnDeathFx(state: GameState, x: number, y: number, seed: numbe
 }
 
 /**
+ * Kicks up the dust of a landing, at the frog's feet. Every puff is the same
+ * size regardless of how far the frog fell — the caller decides only *whether* a
+ * landing was hard enough to raise one.
+ *
+ * `seed` only has to vary between landings; callers pass `state.elapsed`, which
+ * is part of the deterministic simulation and so costs no draw from the run's
+ * seeded generator — same reasoning as `spawnDeathFx` above.
+ */
+export function spawnDust(state: GameState, x: number, y: number, seed: number) {
+  'worklet';
+  let index = -1;
+  for (let i = 0; i < MAX_DUST; i += 1) {
+    if (state.dustAlive[i] === 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index === -1) return;
+
+  state.dustAlive[index] = 1;
+  state.dustX[index] = x;
+  state.dustY[index] = y;
+  state.dustElapsed[index] = 0;
+  state.dustSeed[index] = seed;
+}
+
+/**
  * Turns a live enemy into a fading corpse. Shared by the sword and the stomp, so
  * a kill always looks and behaves the same regardless of how it happened.
  * `knockVX`/`knockVY` are the corpse's flight speed while it fades — a stomp
@@ -169,6 +197,7 @@ export function resetRun(state: GameState, seed: number) {
   state.enemyAlive.fill(0);
   state.flyAlive.fill(0);
   state.fxAlive.fill(0);
+  state.dustAlive.fill(0);
 
   const spec = PLATFORM_SPECS[PlatformType.Start];
   const platX = (DESIGN_WIDTH - spec.w) / 2;
@@ -363,6 +392,12 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
     fxY: new Float32Array(MAX_DEATH_FX),
     fxElapsed: new Float32Array(MAX_DEATH_FX),
     fxSeed: new Float32Array(MAX_DEATH_FX),
+
+    dustAlive: new Uint8Array(MAX_DUST),
+    dustX: new Float32Array(MAX_DUST),
+    dustY: new Float32Array(MAX_DUST),
+    dustElapsed: new Float32Array(MAX_DUST),
+    dustSeed: new Float32Array(MAX_DUST),
   };
 
   resetRun(state, 1);

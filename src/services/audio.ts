@@ -15,7 +15,7 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { AppState, InteractionManager } from 'react-native';
 
-export type SfxName = 'click' | 'pickup' | 'hit' | 'hurt' | 'lose' | 'wheel';
+export type SfxName = 'click' | 'pickup' | 'hit' | 'hurt' | 'land' | 'lose' | 'wheel';
 
 type SfxSpec = {
   source: number;
@@ -28,20 +28,30 @@ type SfxSpec = {
   volume: number;
   /** Minimum gap between two triggers. Caps how much work a burst can queue up. */
   throttleMs: number;
+  /** Playback speed, when this sound is not meant to play at its recorded rate. */
+  rate?: number;
+  /**
+   * Whether `rate` keeps the original pitch. Off by default, which is what makes
+   * a slowed sample sound *lower* — the point when one recording has to cover
+   * two different events.
+   */
+  correctPitch?: boolean;
 };
 
-const SFX: Record<SfxName, SfxSpec> = {
-  click: { source: require('@/assets/audio/sfx-click.m4a'), voices: 2, volume: 0.45, throttleMs: 40 },
-  pickup: { source: require('@/assets/audio/sfx-pickup.m4a'), voices: 2, volume: 0.7, throttleMs: 60 },
-  hit: { source: require('@/assets/audio/sfx-hit.m4a'), voices: 2, volume: 0.75, throttleMs: 60 },
-  hurt: { source: require('@/assets/audio/sfx-hurt.m4a'), voices: 1, volume: 0.85, throttleMs: 150 },
-  lose: { source: require('@/assets/audio/sfx-lose.m4a'), voices: 1, volume: 0.85, throttleMs: 500 },
-  wheel: { source: require('@/assets/audio/sfx-wheel.m4a'), voices: 1, volume: 0.8, throttleMs: 0 },
-};
+const IMPACT_SOURCE = require('@/assets/audio/sfx-hit.m4a');
 
-const MUSIC_SOURCE = require('@/assets/audio/music-swamp.m4a');
-/** Background music sits well under the effects — it is atmosphere, not a signal. */
-const MUSIC_VOLUME = 0.35;
+/**
+ * `land` deliberately shares the combat impact recording. It is a wet squish,
+ * which is exactly what a frog hitting a swamp platform should sound like, and
+ * slowing it without pitch correction drops it into a duller thud that never
+ * gets confused with a hit landing on an enemy. One file covering both keeps
+ * the bundle where it is — see assets/audio/CREDITS.md.
+ *
+ * Kept close to 1: slowing a percussive sample stretches its attack as well as
+ * its pitch, and past roughly this point the thud stops sounding like it lands
+ * the moment the frog touches down.
+ */
+const LAND_PLAYBACK_RATE = 0.88;
 
 /**
  * The wheel sample runs 2.4s, the spin animation 4.2s. Slowing playback to
@@ -49,6 +59,38 @@ const MUSIC_VOLUME = 0.35;
  * stops, instead of falling silent while it is still visibly turning.
  */
 const WHEEL_PLAYBACK_RATE = 0.6;
+
+const SFX: Record<SfxName, SfxSpec> = {
+  click: { source: require('@/assets/audio/sfx-click.m4a'), voices: 2, volume: 0.45, throttleMs: 40 },
+  pickup: { source: require('@/assets/audio/sfx-pickup.m4a'), voices: 2, volume: 0.7, throttleMs: 60 },
+  hit: { source: IMPACT_SOURCE, voices: 2, volume: 0.75, throttleMs: 60 },
+  hurt: { source: require('@/assets/audio/sfx-hurt.m4a'), voices: 1, volume: 0.85, throttleMs: 150 },
+  land: {
+    source: IMPACT_SOURCE,
+    // Two voices: a bouncy platform relaunches straight into another landing,
+    // and the second one should not cut the first short.
+    voices: 2,
+    // Well under `hit`. Landing happens constantly; it is texture, not a signal.
+    volume: 0.4,
+    throttleMs: 90,
+    rate: LAND_PLAYBACK_RATE,
+  },
+  lose: { source: require('@/assets/audio/sfx-lose.m4a'), voices: 1, volume: 0.85, throttleMs: 500 },
+  wheel: {
+    source: require('@/assets/audio/sfx-wheel.m4a'),
+    voices: 1,
+    volume: 0.8,
+    throttleMs: 0,
+    rate: WHEEL_PLAYBACK_RATE,
+    // The ratchet is stretched to cover the spin, not pitched down with it.
+    correctPitch: true,
+  },
+};
+
+const MUSIC_SOURCE = require('@/assets/audio/music-swamp.m4a');
+/** Background music sits well under the effects — it is atmosphere, not a signal. */
+const MUSIC_VOLUME = 0.35;
+
 /** Steps of the fade that ends the wheel sound, so it never cuts off mid-tick. */
 const WHEEL_FADE_STEPS = 8;
 const WHEEL_FADE_STEP_MS = 20;
@@ -97,6 +139,12 @@ function syncMusic() {
  * Players for one effect, created on first use and kept forever. Called from
  * the warm-up below for every effect, so in practice the lazy branch only runs
  * if a button is somehow tapped before the warm-up got its turn.
+ *
+ * Do NOT try to rewind a voice from a `playbackStatusUpdate` listener when
+ * `didJustFinish` fires. Seeking a player that has just played to the end makes
+ * it resume from the new position, so the sound loops forever — and because the
+ * pools are shared, that breaks every effect in the app, not just the one being
+ * tuned. The rewind belongs in `playSfx`, immediately before playback.
  */
 function voicesFor(name: SfxName): AudioPlayer[] {
   const existing = voicePools.get(name);
@@ -110,9 +158,12 @@ function voicesFor(name: SfxName): AudioPlayer[] {
       player.volume = spec.volume;
       players.push(player);
     }
-    if (name === 'wheel' && players[0]) {
-      players[0].shouldCorrectPitch = true;
-      players[0].setPlaybackRate(WHEEL_PLAYBACK_RATE, 'high');
+    // Pitch correction has to be set before the rate for the player to honour it.
+    if (spec.rate !== undefined) {
+      for (const player of players) {
+        player.shouldCorrectPitch = spec.correctPitch ?? false;
+        player.setPlaybackRate(spec.rate, 'high');
+      }
     }
   } catch (error) {
     warn(`could not create players for "${name}"`, error);

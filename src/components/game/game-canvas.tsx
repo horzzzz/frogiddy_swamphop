@@ -27,9 +27,11 @@ import {
   DEATH_FX_SKULL_DARK_COLOR,
   DEATH_FX_SMOKE_COLOR,
   DESIGN_WIDTH,
+  DUST_COLOR,
   PIXELS_PER_METER,
   SFX_DAMAGE,
   SFX_HIT,
+  SFX_LAND,
   SFX_PICKUP,
   TONGUE_AIM_COLOR,
   TONGUE_AIM_WIDTH,
@@ -67,6 +69,7 @@ function playGameSfx(cues: number) {
   if (cues & SFX_HIT) playSfx('hit');
   if (cues & SFX_PICKUP) playSfx('pickup');
   if (cues & SFX_DAMAGE) playSfx('hurt');
+  if (cues & SFX_LAND) playSfx('land');
 }
 
 /** Bare-fisted attack pose — used whenever no Arsenal weapon is equipped. */
@@ -171,19 +174,25 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
     // origin and every puff, at every size, is drawn by scaling the canvas onto
     // it — so the soft edge costs one shader for the life of the screen rather
     // than a blur the GPU would re-evaluate every frame.
-    const smoke = Skia.Color(DEATH_FX_SMOKE_COLOR);
-    const smokeStop = (alpha: number) => Float32Array.of(smoke[0], smoke[1], smoke[2], alpha);
-    const smokePaint = Skia.Paint();
-    smokePaint.setAntiAlias(true);
-    smokePaint.setShader(
-      Skia.Shader.MakeRadialGradient(
-        { x: 0, y: 0 },
-        1,
-        [smokeStop(1), smokeStop(0.75), smokeStop(0)],
-        [0, 0.45, 1],
-        TileMode.Clamp
-      )
-    );
+    const puffPaint = (color: string) => {
+      const base = Skia.Color(color);
+      const stop = (alpha: number) => Float32Array.of(base[0], base[1], base[2], alpha);
+      const puff = Skia.Paint();
+      puff.setAntiAlias(true);
+      puff.setShader(
+        Skia.Shader.MakeRadialGradient(
+          { x: 0, y: 0 },
+          1,
+          [stop(1), stop(0.75), stop(0)],
+          [0, 0.45, 1],
+          TileMode.Clamp
+        )
+      );
+      return puff;
+    };
+
+    const smokePaint = puffPaint(DEATH_FX_SMOKE_COLOR);
+    const dustPaint = puffPaint(DUST_COLOR);
 
     const skullPaint = Skia.Paint();
     skullPaint.setAntiAlias(true);
@@ -223,6 +232,7 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
       skullPaint,
       skullOutlinePaint,
       skullDarkPaint,
+      dustPaint,
       skullPath: parsePath(SKULL_PATH_SVG, 'skull'),
       skullFeaturesPath: parsePath(SKULL_FEATURES_SVG, 'skull features'),
       dst: Skia.XYWHRect(0, 0, 0, 0),
