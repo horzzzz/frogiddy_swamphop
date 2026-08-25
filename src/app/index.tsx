@@ -65,7 +65,11 @@ export default function Index() {
           <View >
             <MenuButton
               label="Play"
-              onPress={() => router.push(tutorialSeen ? '/game' : '/tutorial')}
+              onPress={() =>
+                router.push(
+                  tutorialSeen ? '/game' : { pathname: '/tutorial', params: { from: 'play' } }
+                )
+              }
             />
             {crystalsFound ? (
               <MenuButton label="Arsenal" onPress={() => router.push('/arsenal')} />

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ const HUD_BLOCK = 102;
 
 export default function Tutorial() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const { bestHeight, upgrades, markTutorialSeen } = useEconomy();
   const { width } = useWindowDimensions();
   const scale = width / DESIGN_WIDTH;
@@ -40,7 +41,11 @@ export default function Tutorial() {
     playSfx('click');
     markTutorialSeen();
     reportEvent('tutorial', { action: 'complete' });
-    if (router.canGoBack()) {
+    if (from === 'play') {
+      // Opened from the Play button on a first run — continue straight into
+      // the game instead of bouncing back to the menu.
+      router.replace('/game');
+    } else if (router.canGoBack()) {
       router.back();
     } else {
       router.replace('/');

@@ -32,6 +32,9 @@ export default function GameScreen() {
   const [gameOver, setGameOver] = useState(false);
   const [assetsReady, setAssetsReady] = useState(false);
   const [watchingAd, setWatchingAd] = useState(false);
+  // Guards against double-banking: handleGameOver already records the run, and
+  // the "Menu" button on the Game Over modal also routes through handleExit.
+  const recordedRef = useRef(false);
 
   const handleGameOver = useCallback(
     (final: RunStats) => {
@@ -40,6 +43,7 @@ export default function GameScreen() {
       playSfx('lose');
       reportEvent('game', { action: 'loss' });
       // The whole run is banked in one write — pickups never touch React state.
+      recordedRef.current = true;
       recordRun(final.coins, final.crystals, final.meters);
     },
     [recordRun]
@@ -54,11 +58,20 @@ export default function GameScreen() {
     setStats(emptyRun(maxLives));
     setGameOver(false);
     setPaused(false);
+    recordedRef.current = false;
     canvas.current?.restart();
     reportEvent('game', { action: 'start' });
   }, [maxLives]);
 
-  const handleExit = useCallback(() => router.back(), [router]);
+  const handleExit = useCallback(() => {
+    // Banks whatever the run has collected so far when leaving mid-run (e.g.
+    // from the pause menu), rather than only on death.
+    if (!recordedRef.current) {
+      recordedRef.current = true;
+      recordRun(stats.coins, stats.crystals, stats.meters);
+    }
+    router.back();
+  }, [recordRun, router, stats]);
 
   // Stable so it does not defeat GameCanvas's memo barrier — an inline arrow
   // here would be a fresh prop on every stats push, i.e. ten times a second.
