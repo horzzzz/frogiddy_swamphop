@@ -14,6 +14,7 @@ import {
   JOYSTICK_KNOB_RADIUS,
   JOYSTICK_MARGIN_BOTTOM,
   JOYSTICK_MARGIN_X,
+  JOYSTICK_RESPONSE_CURVE,
 } from '@/game/constants';
 
 type MoveJoystickProps = {
@@ -68,9 +69,12 @@ export function MoveJoystick({ moveAxis }: MoveJoystickProps) {
         return;
       }
       // Rescale past the dead zone so the axis still reaches -1/1 at full
-      // travel instead of stalling short of it.
+      // travel instead of stalling short of it, then curve it — see
+      // JOYSTICK_RESPONSE_CURVE — so a small push reads as an even smaller
+      // nudge instead of a linear (and twitchy) 1:1 response.
       const sign = clamped > 0 ? 1 : -1;
-      moveAxis.value = (sign * (Math.abs(clamped) - deadZone)) / (travel - deadZone);
+      const ratio = (Math.abs(clamped) - deadZone) / (travel - deadZone);
+      moveAxis.value = sign * Math.pow(ratio, JOYSTICK_RESPONSE_CURVE);
     })
     .onFinalize(() => {
       'worklet';

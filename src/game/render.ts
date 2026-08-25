@@ -51,7 +51,6 @@ import {
   TONGUE_MOUTH_Y,
   TONGUE_TIP_RADIUS,
 } from '@/game/constants';
-import { wrappedDeltaX } from '@/game/physics';
 import {
   ENEMY_SPECS,
   EnemyState,
@@ -177,8 +176,12 @@ function frogSpriteFor(state: GameState): number {
   if (state.hurtTimer > 0) return FrogSprite.Hit;
   if (state.attackTimer > 0) return FrogSprite.Attack;
   // Readying the tongue counts too — the pose is the feedback that a hold has
-  // matured into an aim.
+  // matured into an aim. Takes priority over the wall pose below, so aiming or
+  // getting yanked off a wall by a hit still reads the same as it does anywhere.
   if (state.tongueState !== TongueState.Idle) return FrogSprite.Tongue;
+  if (state.frogState === FrogState.WallCling) {
+    return state.wallSide < 0 ? FrogSprite.WallRight : FrogSprite.WallLeft;
+  }
   if (state.frogState === FrogState.Jump) return FrogSprite.Jump;
   if (state.frogState === FrogState.Fall) return FrogSprite.Fall;
   return FrogSprite.Idle;
@@ -186,23 +189,28 @@ function frogSpriteFor(state: GameState): number {
 
 function drawBackground(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
   'worklet';
-  // The background does not scroll. It is a single painted scene with no seamless
-  // vertical join, so tiling it can only ever show a hard edge — better a fixed
-  // backdrop than a visible seam once per screen.
+  // The background does not scroll or zoom. It is a single painted scene with
+  // no seamless vertical join, so tiling it can only ever show a hard edge —
+  // better a fixed backdrop than a visible seam once per screen. Drawn in its
+  // own unzoomed, un-panned pass by `drawScene`, so it always exactly covers
+  // the physical screen regardless of what Eyes level the run is playing at.
   //
   // It is cover-cropped rather than stretched: the source rect is narrowed or
   // shortened to match the device's aspect, so the art keeps its proportions on
-  // any screen.
+  // any screen. The frame this has to cover is `state.viewH * state.zoom` —
+  // `viewH` alone is the *zoomed* window (see its own doc comment on
+  // GameState), which at any zoom past 1 is smaller than the actual screen.
   const image = assets.bg.image;
   const imageW = assets.bg.src.width;
   const imageH = assets.bg.src.height;
+  const frameH = state.viewH * state.zoom;
 
-  const scale = Math.max(DESIGN_WIDTH / imageW, state.viewH / imageH);
+  const scale = Math.max(DESIGN_WIDTH / imageW, frameH / imageH);
   const cropW = DESIGN_WIDTH / scale;
-  const cropH = state.viewH / scale;
+  const cropH = frameH / scale;
 
   s.src.setXYWH((imageW - cropW) / 2, (imageH - cropH) / 2, cropW, cropH);
-  s.dst.setXYWH(0, 0, DESIGN_WIDTH, state.viewH);
+  s.dst.setXYWH(0, 0, DESIGN_WIDTH, frameH);
   canvas.drawImageRect(image, s.src, s.dst, s.paint);
 }
 
@@ -298,7 +306,17 @@ function drawFrogSprite(
   const scaleY = ratio < 0 ? 1 - ratio * SQUASH_MAX_STRETCH : 1 - ratio * SQUASH_MAX_SQUASH;
   const scaleX = 1 / scaleY;
 
-  const sprite = assets.frog[frogSpriteFor(state)];
+  const spriteIndex = frogSpriteFor(state);
+  const sprite = assets.frog[spriteIndex];
+
+  // WallLeft/WallRight are two distinct, already-correctly-oriented poses —
+  // not one pose meant to be mirrored by facing the way every other sprite
+  // is. Flipping by `frogFacing` on top of that would un-mirror whichever
+  // side's art happens to look like the other side's flipped, which is
+  // exactly the "left wall looks like a copy of right" bug this guards
+  // against — so the wall poses always draw at facing 1, art as authored.
+  const facing =
+    spriteIndex === FrogSprite.WallLeft || spriteIndex === FrogSprite.WallRight ? 1 : state.frogFacing;
 
   // i-frame flicker: toggles off `hurtTimer` itself rather than the clock, so it
   // always lands on "visible" the instant invulnerability ends — no dangling
@@ -313,30 +331,23 @@ function drawFrogSprite(
 
   canvas.save();
   canvas.translate(x, screenY);
-  canvas.scale(state.frogFacing * scaleX, scaleY);
+  canvas.scale(facing * scaleX, scaleY);
   s.dst.setXYWH(-FROG_SPRITE_W / 2, -FROG_SPRITE_H / 2, FROG_SPRITE_W, FROG_SPRITE_H);
   canvas.drawImageRect(sprite.image, sprite.src, s.dst, paint);
   canvas.restore();
 }
 
 /**
- * The tongue is drawn per frog copy and outside the squash & stretch transform:
- * it hangs off the mouth, and stretching it with the body would read as rubber.
+ * The tongue is drawn outside the squash & stretch transform: it hangs off the
+ * mouth, and stretching it with the body would read as rubber.
  */
-function drawTongueFrom(
-  canvas: SkCanvas,
-  state: GameState,
-  s: RenderScratch,
-  frogDrawX: number,
-  screenY: number
-) {
+function drawTongueFrom(canvas: SkCanvas, state: GameState, s: RenderScratch, screenY: number) {
   'worklet';
   if (state.tongueState === TongueState.Idle || state.tongueState === TongueState.Aiming) return;
 
-  const mouthX = frogDrawX + state.frogFacing * TONGUE_MOUTH_X;
+  const mouthX = state.frogX + state.frogFacing * TONGUE_MOUTH_X;
   const mouthY = screenY + TONGUE_MOUTH_Y;
-  // Offsetting the tip from this copy's frog keeps it attached across the seam.
-  const tipX = frogDrawX + wrappedDeltaX(state.frogX, state.tongueTipX);
+  const tipX = state.tongueTipX;
   const tipY = state.tongueTipY - state.camY;
 
   canvas.drawLine(mouthX, mouthY, tipX, tipY, s.tonguePaint);
@@ -346,19 +357,8 @@ function drawTongueFrom(
 function drawFrog(canvas: SkCanvas, state: GameState, assets: GameAssets, s: RenderScratch) {
   'worklet';
   const screenY = state.frogY - state.camY;
-  const half = FROG_SPRITE_W / 2;
-
   drawFrogSprite(canvas, state, assets, s, state.frogX, screenY);
-  drawTongueFrom(canvas, state, s, state.frogX, screenY);
-
-  // Straddling the wrap seam: draw the other half so the frog is never sliced off.
-  if (state.frogX < half) {
-    drawFrogSprite(canvas, state, assets, s, state.frogX + DESIGN_WIDTH, screenY);
-    drawTongueFrom(canvas, state, s, state.frogX + DESIGN_WIDTH, screenY);
-  } else if (state.frogX > DESIGN_WIDTH - half) {
-    drawFrogSprite(canvas, state, assets, s, state.frogX - DESIGN_WIDTH, screenY);
-    drawTongueFrom(canvas, state, s, state.frogX - DESIGN_WIDTH, screenY);
-  }
+  drawTongueFrom(canvas, state, s, screenY);
 }
 
 /**
@@ -376,7 +376,7 @@ function drawTongueAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
   const mouthY = state.frogY + TONGUE_MOUTH_Y - state.camY;
 
   if (state.tongueAimTarget !== TongueTarget.None) {
-    const targetX = state.frogX + wrappedDeltaX(state.frogX, state.tongueAimX);
+    const targetX = state.tongueAimX;
     const targetY = state.tongueAimY - state.camY;
     canvas.drawLine(mouthX, mouthY, targetX, targetY, s.aimPaint);
     canvas.drawCircle(targetX, targetY, TONGUE_HIGHLIGHT_RADIUS, s.aimPaint);
@@ -385,7 +385,9 @@ function drawTongueAim(canvas: SkCanvas, state: GameState, s: RenderScratch) {
 
   // Nothing in reach. Draw the reach limit toward the finger, so pointing at
   // nothing looks like pointing at nothing rather than like a broken control.
-  const dx = wrappedDeltaX(state.frogX, state.touchX);
+  // `touchX`/`touchY` are viewport-local (see their doc comment on GameState),
+  // so both need the camera added back to compare against the world-space mouth.
+  const dx = state.touchX + state.camX - state.frogX;
   const dy = state.touchY + state.camY - state.frogY;
   const length = Math.max(1, Math.sqrt(dx * dx + dy * dy));
   const reach = Math.min(length, state.tongueRange);
@@ -468,8 +470,8 @@ function drawFlyers(canvas: SkCanvas, state: GameState, assets: GameAssets, s: R
  * Unlike the flyers, these hold *world* coordinates and subtract `camY` per
  * frame: a flyer is aiming at a fixed HUD pill and must ignore the camera,
  * while this effect belongs to the spot the enemy died on and has to scroll
- * with it. Also like `drawEnemies`, it does not draw a second copy across the
- * wrap seam — it should behave exactly like the enemy it came from.
+ * with it — drawn in the same zoomed, panned pass as the enemy it came from,
+ * so it inherits that camera treatment automatically.
  */
 function drawDeathFx(canvas: SkCanvas, state: GameState, s: RenderScratch) {
   'worklet';
@@ -597,6 +599,23 @@ function drawDust(canvas: SkCanvas, state: GameState, s: RenderScratch) {
   }
 }
 
+/**
+ * Three separate transforms, not one. Eyes can zoom the visible window in
+ * past the physical screen (see `zoom`/`viewW`/`viewH` on GameState), so
+ * "draw at screenScale" stopped being enough on its own:
+ *
+ * 1. The background — unzoomed, un-panned. It never scrolled even before
+ *    zoom existed (see its own comment), so it stays pinned to the physical
+ *    screen at every Eyes level rather than shrinking into a zoomed inset.
+ * 2. The world — background, platforms, pickups, enemies, the frog, and every
+ *    world-anchored effect, all at `screenScale * zoom` and panned by `camX`.
+ *    Y keeps the pre-Eyes convention of a manual `- state.camY` per draw call
+ *    rather than a second canvas translate; X's `-camX` is the one axis that
+ *    is genuinely new, so it is the one that gets an actual transform.
+ * 3. The flyers — unzoomed, un-panned again, because `spawnFlyer` already froze
+ *    their start point into that same screen space when the pickup was
+ *    collected (see its own doc comment), aimed at a fixed HUD pill position.
+ */
 export function drawScene(
   canvas: SkCanvas,
   state: GameState,
@@ -608,8 +627,13 @@ export function drawScene(
   'worklet';
   canvas.save();
   canvas.scale(screenScale, screenScale);
-
   drawBackground(canvas, state, assets, scratch);
+  canvas.restore();
+
+  canvas.save();
+  canvas.scale(screenScale * state.zoom, screenScale * state.zoom);
+  canvas.translate(-state.camX, 0);
+
   drawPlatforms(canvas, state, assets, scratch);
   drawPickups(canvas, state, assets, scratch, clock);
   drawEnemies(canvas, state, assets, scratch, clock);
@@ -619,11 +643,14 @@ export function drawScene(
   // spend its short life hidden by whatever caused it.
   drawDust(canvas, state, scratch);
   // Above the world — a departing spirit should never be hidden behind the
-  // corpse it left — but under the tongue aim and the flyers, which are read
-  // as controls and must stay legible through it.
+  // corpse it left — but under the tongue aim, which is read as a control and
+  // must stay legible through it.
   drawDeathFx(canvas, state, scratch);
   drawTongueAim(canvas, state, scratch);
-  drawFlyers(canvas, state, assets, scratch);
+  canvas.restore();
 
+  canvas.save();
+  canvas.scale(screenScale, screenScale);
+  drawFlyers(canvas, state, assets, scratch);
   canvas.restore();
 }

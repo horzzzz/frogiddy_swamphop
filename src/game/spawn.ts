@@ -16,6 +16,7 @@ import {
   PICKUP_CHANCE,
   PICKUP_HEIGHT,
   SPAWN_AHEAD,
+  SPIKES_COMPANION_GAP,
 } from '@/game/constants';
 import { nextRandom, randomRange } from '@/game/rng';
 import {
@@ -86,6 +87,41 @@ function pickEnemyType(state: GameState): EnemyTypeValue {
 }
 
 /**
+ * A Spikes row's escape hatch: a bare Small platform at the same surface Y,
+ * tucked against whichever side of the spike has more room. Landing on
+ * spikes should be a choice, never the only thing at that height to land on.
+ *
+ * Returns the companion's centre X, or -1 if the pool was full (in which
+ * case the caller just leaves the spike as the row's anchor, same as before
+ * this existed).
+ */
+function spawnSpikesCompanion(state: GameState, spikeBaseX: number, spikeWidth: number, surfaceY: number): number {
+  'worklet';
+  const index = allocPlatform(state);
+  if (index === -1) return -1;
+
+  const spec = PLATFORM_SPECS[PlatformType.Small];
+  const halfW = spec.w / 2;
+
+  const roomLeft = spikeBaseX;
+  const roomRight = DESIGN_WIDTH - (spikeBaseX + spikeWidth);
+  const baseX =
+    roomRight >= roomLeft
+      ? Math.min(DESIGN_WIDTH - spec.w, spikeBaseX + spikeWidth + SPIKES_COMPANION_GAP)
+      : Math.max(0, spikeBaseX - SPIKES_COMPANION_GAP - spec.w);
+
+  state.platType[index] = PlatformType.Small;
+  state.platY[index] = surfaceY - spec.surfaceY;
+  state.platAlive[index] = 1;
+  state.platPhase[index] = randomRange(state, 0, Math.PI * 2);
+  state.platBaseX[index] = baseX;
+  state.platRange[index] = 0;
+  state.platX[index] = baseX;
+
+  return baseX + halfW;
+}
+
+/**
  * Places one platform so that its highest standable point lands on `surfaceY`.
  *
  * Gaps are measured surface to surface, not sprite-top to sprite-top: the bouncy
@@ -147,7 +183,15 @@ function spawnRow(state: GameState, surfaceY: number) {
 
   // Spikes is a hazard and nothing else — it never carries an enemy to fight
   // on it or a pickup dangling as bait over it, unlike every other type below.
-  if (type === PlatformType.Spikes) return;
+  // It does always get a safe companion, though — see `spawnSpikesCompanion`
+  // — and once one exists, *that* becomes the row's anchor for what comes
+  // next, not the hazard: the safe line through the level runs beside the
+  // spikes, not through them.
+  if (type === PlatformType.Spikes) {
+    const companionCentre = spawnSpikesCompanion(state, baseX, spec.w, surfaceY);
+    if (companionCentre !== -1) state.lastSpawnX = companionCentre;
+    return;
+  }
 
   // Enemies: never on the opening platform or on Bouncy (you cannot stand and
   // fight where landing itself relaunches you), and not until the run has

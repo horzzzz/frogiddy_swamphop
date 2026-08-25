@@ -81,7 +81,7 @@ export const AUTO_JUMP_HEIGHT = (AUTO_JUMP_IMPULSE_BASE * AUTO_JUMP_IMPULSE_BASE
 /** Bouncy platforms relaunch you automatically at this multiple of a base auto-jump. */
 export const BOUNCY_MULTIPLIER = 1.65;
 /** Straight horizontal speed the move joystick drives the frog at — no acceleration, no drift. */
-export const MOVE_SPEED_MAX = 300;
+export const MOVE_SPEED_MAX = 220;
 
 // ---------------------------------------------------------------------------
 // Tongue
@@ -136,13 +136,56 @@ export const TONGUE_HIGHLIGHT_RADIUS = 20;
 export const MOUTH_ABOVE_SURFACE = FROG_HALF_H - TONGUE_MOUTH_Y;
 
 // ---------------------------------------------------------------------------
+// Walls
+// ---------------------------------------------------------------------------
+
+/**
+ * Flying into either edge of the world now clings instead of wrapping around
+ * to the opposite side — wrapping only ever read sensibly when the camera
+ * showed the whole DESIGN_WIDTH at once, which stops being true once Eyes can
+ * zoom the view in. `wallSide`/`wallTimer` on the state track the hang.
+ *
+ * The pause before sliding starts — long enough that a deliberate wall-tongue
+ * (aim, then fire) fits inside it without a race against gravity.
+ */
+export const WALL_CLING_GRACE = 0.4;
+/** Terminal slide speed — well under MAX_FALL_SPEED, so clinging always reads
+ *  as slower than falling, never as a cosmetic pause on the way down anyway. */
+export const WALL_SLIDE_SPEED = 70;
+/** How fast the slide ramps up to WALL_SLIDE_SPEED once the grace period ends. */
+export const WALL_SLIDE_ACCEL = 220;
+/** Move-axis deflection away from the wall that lets go of it, back into a
+ *  normal fall. Below AUTO_JUMP's move axis convention (±1), so a firm flick
+ *  releases but noise from a resting thumb cannot. */
+export const WALL_DETACH_AXIS = 0.35;
+
+// ---------------------------------------------------------------------------
 // Camera
 // ---------------------------------------------------------------------------
 
 /** Where the frog sits vertically at rest, as a fraction of screen height. */
 export const CAMERA_ANCHOR = 0.62;
-/** Exponential follow rate. Higher is snappier; the camera never pans back down. */
+/**
+ * Exponential follow rate. Higher is snappier; the camera never pans back down
+ * vertically. Shared with the horizontal follow below — one feel for both axes.
+ */
 export const CAMERA_SMOOTH = 9;
+
+// ---------------------------------------------------------------------------
+// Eyes (Frogenetics field-of-view upgrade)
+// ---------------------------------------------------------------------------
+
+/**
+ * Zoom at Frogenetics level 0 — the visible window is this many times *smaller*
+ * than the full DESIGN_WIDTH×DESIGN_HEIGHT frame. The live value is `zoom` on
+ * the state; each Eyes level below EYES_ZOOM_STEPs it down. Level generation
+ * never reads this — GAP_MAX/MAX_SPAWN_DX are already sized against the
+ * *narrowest* view a level-0 run ever sees, so a zoomed-out camera only ever
+ * shows more of a level that was already reachable, never less.
+ */
+export const EYES_ZOOM_BASE = 1.5;
+/** Zoom lost per Eyes level; five levels exactly cancel EYES_ZOOM_BASE's 0.5. */
+export const EYES_ZOOM_STEP = 0.1;
 
 // ---------------------------------------------------------------------------
 // Level generation
@@ -180,6 +223,14 @@ export const GAP_MAX = MOUTH_ABOVE_SURFACE + AUTO_JUMP_HEIGHT + TONGUE_RANGE_BAS
  * (130) even before the move joystick closes any of the gap itself.
  */
 export const MAX_SPAWN_DX = 80;
+/**
+ * Clear width kept between a Spikes platform and the bare Small platform
+ * `spawnRow` always spawns beside it — see `spawnSpikesCompanion`. Spikes is
+ * the one row type that can otherwise be the *only* landing spot at its
+ * height; this guarantees a hazard-free option is always in reach next to it,
+ * so clearing a Spikes row is a choice of where to land, never a forced hit.
+ */
+export const SPIKES_COMPANION_GAP = 16;
 /** Chance a platform carries a pickup above it. */
 export const PICKUP_CHANCE = 0.45;
 /** Of those pickups, the share that are crystals rather than coins. */
@@ -461,17 +512,26 @@ export const TONGUE_AIM_WIDTH = 3;
  * own GestureDetector, so a finger on the stick physically never reaches the
  * tongue/attack gesture underneath.
  */
-export const JOYSTICK_BASE_RADIUS = 52;
-export const JOYSTICK_KNOB_RADIUS = 26;
+export const JOYSTICK_BASE_RADIUS = 64;
+export const JOYSTICK_KNOB_RADIUS = 32;
 /** Distance from the screen's bottom-left safe-area corner to the stick's centre. */
-export const JOYSTICK_MARGIN_X = 70;
-export const JOYSTICK_MARGIN_BOTTOM = 70;
+export const JOYSTICK_MARGIN_X = 82;
+export const JOYSTICK_MARGIN_BOTTOM = 82;
 /**
  * Finger travel, as a fraction of `JOYSTICK_BASE_RADIUS`, below which the axis
  * reads as 0 — a thumb resting near centre should not dribble the frog
  * sideways.
  */
-export const JOYSTICK_DEAD_ZONE = 0.12;
+export const JOYSTICK_DEAD_ZONE = 0.15;
+/**
+ * Exponent applied to the axis past the dead zone — above 1 on purpose, so
+ * the first half of the stick's travel reads as fine steering (a small push
+ * is a proportionally smaller nudge) and speed only ramps up sharply near
+ * full deflection. Without this a linear stick made every twitch of the
+ * thumb read as a full-speed dart sideways, which is what made it feel
+ * "too sensitive" despite `MOVE_SPEED_MAX` itself being a moderate speed.
+ */
+export const JOYSTICK_RESPONSE_CURVE = 1.8;
 
 // ---------------------------------------------------------------------------
 // Sound cues

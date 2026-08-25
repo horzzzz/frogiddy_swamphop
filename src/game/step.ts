@@ -11,6 +11,7 @@ import {
   stepFrog,
   stepHazards,
   stepMovingPlatforms,
+  stepWallCling,
 } from '@/game/physics';
 import { recycleBelow, spawnAhead } from '@/game/spawn';
 import { resolveTouch, stepTongue } from '@/game/tongue';
@@ -52,12 +53,19 @@ export function advance(state: GameState, frameDt: number) {
     // position, not last step's. Hazards run after enemies so they read this
     // step's already-ticked i-frame timer; flyers run after pickups so a flyer
     // spawned this very step still gets a tick, and death effects run after
-    // enemies for the same reason.
+    // enemies for the same reason. A wall cling is the same kind of takeover
+    // as a tongue pull — it owns the frog's motion outright — so it routes to
+    // `stepWallCling` instead of `stepFrog` on the same "skip ordinary physics"
+    // principle, whether the cling started on a previous step or, via a
+    // tongue-pull onto a wall, earlier in this very one.
     stepMovingPlatforms(state, FIXED_DT);
     if (state.grounded) launchAutoJump(state);
     resolveTouch(state);
     stepTongue(state, FIXED_DT);
-    if (state.tongueState !== TongueState.Pulling) stepFrog(state, FIXED_DT);
+    if (state.tongueState !== TongueState.Pulling) {
+      if (state.frogState === FrogState.WallCling) stepWallCling(state, FIXED_DT);
+      else stepFrog(state, FIXED_DT);
+    }
     stepEnemies(state, FIXED_DT);
     stepHazards(state);
     collectPickups(state);

@@ -11,6 +11,9 @@ export const FrogState = {
   Jump: 1,
   Fall: 2,
   Dead: 3,
+  /** Clinging to a world edge — see `wallSide`/`wallTimer` on GameState and
+   *  `clingToWall`/`stepWallCling` in physics.ts. */
+  WallCling: 4,
 } as const;
 export type FrogStateValue = (typeof FrogState)[keyof typeof FrogState];
 
@@ -27,7 +30,9 @@ export type TongueStateValue = (typeof TongueState)[keyof typeof TongueState];
 export const TongueTarget = {
   None: 0,
   Platform: 1,
-  Pickup: 2,
+  /** Either world edge — anchors on the edge itself, not on a pool entry, so
+   *  `tongueTargetIndex` is meaningless for this target (see `stepTongue`). */
+  Wall: 2,
 } as const;
 export type TongueTargetValue = (typeof TongueTarget)[keyof typeof TongueTarget];
 
@@ -207,21 +212,38 @@ export type GameState = {
   grounded: boolean;
   /** Platform the frog is standing on, or -1. Used to ride moving platforms. */
   groundedIndex: number;
+  /** -1 clinging to the left world edge, 1 the right, 0 not clinging — see
+   *  `clingToWall`/`stepWallCling` in physics.ts. */
+  wallSide: number;
+  /** Counts down WALL_CLING_GRACE while a fresh cling is frozen in place. */
+  wallTimer: number;
 
   // Health.
   lives: number;
   /** Counts down i-frames after a hit; also drives the hit-flash render. */
   hurtTimer: number;
 
-  // Camera. `camY` is the world Y at the top edge of the screen.
+  // Camera. `camY`/`camX` are the world coordinates at the top-left of the
+  // visible window — not necessarily the screen, now that Eyes can zoom it.
   camY: number;
+  camX: number;
   /**
-   * Visible height in design units. Scaling is driven by width so that the
-   * horizontal wrap lines up with the mockups exactly; the vertical extent then
-   * varies a few percent by device aspect, and culling, the death line and the
-   * camera anchor all have to use this rather than the nominal 932.
+   * Visible height/width in design units, at the current zoom — DESIGN_WIDTH ÷
+   * `zoom` and this device's own aspect-driven height ÷ `zoom`. Everything that
+   * used to read the nominal 430×932 frame directly (culling, the death line,
+   * the camera anchors, generation's spawn/recycle horizon) has to use these
+   * instead, since a maxed-out Eyes shows the old full frame but level 0 shows
+   * noticeably less of it.
    */
   viewH: number;
+  viewW: number;
+  /**
+   * Frogenetics field-of-view stat: how many times smaller the visible window
+   * is than the full DESIGN_WIDTH×DESIGN_HEIGHT frame. 1.5 at level 0, 1.0 —
+   * the old, unzoomed view — once Eyes is maxed. Screen setup, not run state,
+   * same convention as `tongueRange`/`autoJumpImpulse` below.
+   */
+  zoom: number;
 
   // Run bookkeeping.
   running: boolean;
@@ -258,7 +280,8 @@ export type GameState = {
   // updates and a hold would otherwise never resolve.
   touchActive: boolean;
   touchMode: TouchModeValue;
-  /** Screen-space design units. World Y is this plus `camY` at the moment of use. */
+  /** Screen-space design units, already divided by zoom in the gesture handler
+   *  — world position is this plus `camX`/`camY` at the moment of use. */
   touchStartX: number;
   touchStartY: number;
   touchX: number;

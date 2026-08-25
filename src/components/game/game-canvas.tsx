@@ -53,7 +53,13 @@ import { FrogState, TouchMode } from '@/game/types';
 import { useGameAssets } from '@/hooks/use-game-assets';
 import { playSfx } from '@/services/audio';
 import type { Weapon } from '@/constants/weapons';
-import { autoJumpImpulseFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
+import {
+  autoJumpImpulseFor,
+  maxLivesFor,
+  tongueRangeFor,
+  zoomFor,
+  type FrogeneticsLevels,
+} from '@/constants/frogenetics';
 
 /**
  * How often run totals are pushed to the React HUD, in simulation seconds.
@@ -118,12 +124,15 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   const maxLives = maxLivesFor(upgrades.body);
   const tongueRange = tongueRangeFor(upgrades.tongue);
   const autoJumpImpulse = autoJumpImpulseFor(upgrades.legs);
+  const zoom = zoomFor(upgrades.eyes);
 
-  // Scaling is driven by width so the horizontal wrap matches the 430-wide
-  // mockups exactly; the visible height in design units then follows from the
-  // device's aspect ratio.
+  // Scaling is driven by width so the design frame lines up with the 430-wide
+  // mockups exactly at Eyes level 0 — zoom then narrows what of that frame is
+  // actually visible, so `viewW`/`viewH` (not DESIGN_WIDTH/this raw height)
+  // are what the simulation and renderer treat as the world window.
   const scale = width / DESIGN_WIDTH;
-  const viewH = height / scale;
+  const viewW = DESIGN_WIDTH / zoom;
+  const viewH = height / scale / zoom;
 
   // Allocated once for the lifetime of the screen, seeded with whatever
   // Frogenetics levels are current at mount so the very first run already
@@ -135,6 +144,7 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
         maxLives,
         tongueRange,
         autoJumpImpulse,
+        zoom,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -245,18 +255,22 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   const gameOverSent = useSharedValue(false);
 
   // Keep the simulation's idea of the viewport in step with the real one, and
-  // re-anchor the camera: without this the frog would sit at the wrong height on
-  // any device whose aspect ratio is not the design frame's.
+  // re-anchor the camera on both axes: without this the frog would sit at the
+  // wrong height on any device whose aspect ratio is not the design frame's,
+  // or drift into view mid-screen the moment Eyes changes `viewW`.
   useEffect(() => {
-    runOnUI((visibleHeight: number) => {
+    runOnUI((visibleW: number, visibleH: number) => {
       'worklet';
       const world = state.value;
-      world.viewH = visibleHeight;
-      world.camY = world.frogY - visibleHeight * CAMERA_ANCHOR;
-    })(viewH);
-  }, [state, viewH]);
+      world.viewW = visibleW;
+      world.viewH = visibleH;
+      world.camY = world.frogY - visibleH * CAMERA_ANCHOR;
+      // Same clamp `updateCamera` applies every frame — see its own comment.
+      world.camX = Math.min(Math.max(0, DESIGN_WIDTH - visibleW), Math.max(0, world.frogX - visibleW / 2));
+    })(viewW, viewH);
+  }, [state, viewW, viewH]);
 
-  // Screen setup, not run state — mirrors the viewH effect above. `resetRun`
+  // Screen setup, not run state — mirrors the viewport effect above. `resetRun`
   // deliberately leaves these alone, so switching weapons mid-run (impossible
   // today, since the Arsenal is a different screen) wouldn't need a restart.
   useEffect(() => {
@@ -272,14 +286,17 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
   // setup applied on top of whatever createGameState seeded, so a level bought
   // between runs takes effect without remounting the canvas.
   useEffect(() => {
-    runOnUI((maxLivesValue: number, tongueRangeValue: number, autoJumpImpulseValue: number) => {
-      'worklet';
-      const world = state.value;
-      world.maxLives = maxLivesValue;
-      world.tongueRange = tongueRangeValue;
-      world.autoJumpImpulse = autoJumpImpulseValue;
-    })(maxLives, tongueRange, autoJumpImpulse);
-  }, [state, maxLives, tongueRange, autoJumpImpulse]);
+    runOnUI(
+      (maxLivesValue: number, tongueRangeValue: number, autoJumpImpulseValue: number, zoomValue: number) => {
+        'worklet';
+        const world = state.value;
+        world.maxLives = maxLivesValue;
+        world.tongueRange = tongueRangeValue;
+        world.autoJumpImpulse = autoJumpImpulseValue;
+        world.zoom = zoomValue;
+      }
+    )(maxLives, tongueRange, autoJumpImpulse, zoom);
+  }, [state, maxLives, tongueRange, autoJumpImpulse, zoom]);
 
   const frameCallback = useFrameCallback((info) => {
     'worklet';
@@ -355,15 +372,16 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
         // climb past the old run's length before the HUD updates again.
         lastStatsAt.value = 0;
         const seed = (Date.now() & 0x7fffffff) || 1;
-        runOnUI((nextSeed: number, visibleHeight: number) => {
+        runOnUI((nextSeed: number, visibleW: number, visibleHeight: number) => {
           'worklet';
           const world = state.value;
+          world.viewW = visibleW;
           world.viewH = visibleHeight;
           resetRun(world, nextSeed);
-        })(seed, viewH);
+        })(seed, viewW, viewH);
       },
     }),
-    [gameOverSent, lastStatsAt, state, viewH]
+    [gameOverSent, lastStatsAt, state, viewW, viewH]
   );
 
   // The gesture only records raw facts about the finger. What they mean —
@@ -384,10 +402,14 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
           const world = state.value;
           if (world.frogState === FrogState.Dead) return;
 
+          // Divided by zoom, not just `scale`: touchX/Y are viewport-local
+          // (see their doc comment on GameState) — world position is this plus
+          // camX/camY, with the zoom already folded in here rather than at
+          // every read site, the same way `scale` alone always has been.
           world.touchActive = true;
           world.touchMode = TouchMode.Aim;
-          world.touchStartX = event.x / scale;
-          world.touchStartY = event.y / scale;
+          world.touchStartX = event.x / (scale * world.zoom);
+          world.touchStartY = event.y / (scale * world.zoom);
           world.touchX = world.touchStartX;
           world.touchY = world.touchStartY;
           world.touchMoved = 0;
@@ -398,8 +420,8 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
           const world = state.value;
           if (!world.touchActive) return;
 
-          world.touchX = event.x / scale;
-          world.touchY = event.y / scale;
+          world.touchX = event.x / (scale * world.zoom);
+          world.touchY = event.y / (scale * world.zoom);
 
           const dx = world.touchX - world.touchStartX;
           const dy = world.touchY - world.touchStartY;

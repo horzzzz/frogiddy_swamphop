@@ -89,6 +89,7 @@ function reconcile(raw: unknown): WalletData {
 
   const savedUpgrades = (saved.upgrades ?? {}) as Partial<FrogeneticsLevels>;
   const upgrades: FrogeneticsLevels = {
+    eyes: reconcileLevel(savedUpgrades.eyes),
     tongue: reconcileLevel(savedUpgrades.tongue),
     body: reconcileLevel(savedUpgrades.body),
     legs: reconcileLevel(savedUpgrades.legs),

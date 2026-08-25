@@ -24,6 +24,10 @@ import {
   SFX_LAND,
   SFX_PICKUP,
   STOMP_BOUNCE_MULTIPLIER,
+  WALL_CLING_GRACE,
+  WALL_DETACH_AXIS,
+  WALL_SLIDE_ACCEL,
+  WALL_SLIDE_SPEED,
 } from '@/game/constants';
 import { clearTongue, killEnemy, spawnDust, spawnFlyer } from '@/game/state';
 import {
@@ -37,21 +41,6 @@ import {
   type GameState,
   type PlatformSpec,
 } from '@/game/types';
-
-/** Keeps X inside the play field. The world wraps horizontally, Doodle Jump style. */
-export function wrapX(x: number): number {
-  'worklet';
-  return ((x % DESIGN_WIDTH) + DESIGN_WIDTH) % DESIGN_WIDTH;
-}
-
-/** Shortest signed X distance from `from` to `to`, going around the wrap seam if that is closer. */
-export function wrappedDeltaX(from: number, to: number): number {
-  'worklet';
-  let dx = to - from;
-  if (dx > DESIGN_WIDTH / 2) dx -= DESIGN_WIDTH;
-  else if (dx < -DESIGN_WIDTH / 2) dx += DESIGN_WIDTH;
-  return dx;
-}
 
 /**
  * Surface height of a platform at a given X (already resolved onto the
@@ -129,6 +118,56 @@ export function land(state: GameState, index: number, surfaceY: number) {
 }
 
 /**
+ * Seats the frog against a world edge. The X/Y counterpart to `land` — shared
+ * by the collision check in `stepFrog` and by the tongue's Pulling phase, so
+ * flying into a wall and lassoing yourself onto one end the same way.
+ *
+ * Deliberately does not touch `frogY`: unlike a platform, a wall has no
+ * surface to snap to, so the frog stays exactly where it was vertically and
+ * `stepWallCling` takes it from there.
+ */
+export function clingToWall(state: GameState, side: number) {
+  'worklet';
+  state.frogX = side < 0 ? FROG_HALF_W : DESIGN_WIDTH - FROG_HALF_W;
+  state.frogVX = 0;
+  state.frogVY = 0;
+  state.frogState = FrogState.WallCling;
+  state.frogFacing = -side;
+  state.wallSide = side;
+  state.wallTimer = WALL_CLING_GRACE;
+  state.grounded = false;
+  state.groundedIndex = -1;
+  clearTongue(state);
+  state.tongueUsedThisFlight = false;
+}
+
+/**
+ * Advances a wall-cling: frozen for `WALL_CLING_GRACE`, then a slide that ramps
+ * up to `WALL_SLIDE_SPEED` — slower than a free fall on purpose, so clinging
+ * reads as a reprieve worth using rather than just a delayed death. Leaning the
+ * move joystick away from the wall past `WALL_DETACH_AXIS` lets go early, back
+ * into an ordinary fall; `stepFrog` picks the frog back up the moment
+ * `frogState` stops being WallCling.
+ */
+export function stepWallCling(state: GameState, dt: number) {
+  'worklet';
+  const leaningAway = state.wallSide < 0 ? state.moveAxis > WALL_DETACH_AXIS : state.moveAxis < -WALL_DETACH_AXIS;
+  if (leaningAway) {
+    state.frogState = FrogState.Fall;
+    state.wallSide = 0;
+    return;
+  }
+
+  if (state.wallTimer > 0) {
+    state.wallTimer = Math.max(0, state.wallTimer - dt);
+    return;
+  }
+
+  state.frogVY = Math.min(state.frogVY + WALL_SLIDE_ACCEL * dt, WALL_SLIDE_SPEED);
+  state.frogY += state.frogVY * dt;
+}
+
+/**
  * Applies one enemy hit. A no-op while i-frames are still running, so a windup
  * that somehow lands during the flash cannot stack damage.
  *
@@ -168,7 +207,7 @@ export function stepMovingPlatforms(state: GameState, dt: number) {
     state.platX[i] = nextX;
 
     if (state.grounded && state.groundedIndex === i) {
-      state.frogX = wrapX(state.frogX + (nextX - previousX));
+      state.frogX += nextX - previousX;
     }
   }
 
@@ -200,14 +239,28 @@ export function stepFrog(state: GameState, dt: number) {
   // a force, so the frog's horizontal position is always exactly where the
   // stick says it should be.
   state.frogVX = state.moveAxis * MOVE_SPEED_MAX;
-  state.frogX = wrapX(state.frogX + state.frogVX * dt);
   state.frogY += state.frogVY * dt;
+  if (state.frogY < state.peakY) state.peakY = state.frogY;
+
+  // World edges cling rather than wrap now that the camera can be zoomed in
+  // close enough that the far edge is off-screen — see `clingToWall`. Checked
+  // before committing the X move, and returns immediately: a frog that hits a
+  // wall this step cannot also land on a platform or stomp an enemy the same
+  // step, the same way a stomp already pre-empts a landing below.
+  const nextX = state.frogX + state.frogVX * dt;
+  if (nextX < FROG_HALF_W) {
+    clingToWall(state, -1);
+    return;
+  }
+  if (nextX > DESIGN_WIDTH - FROG_HALF_W) {
+    clingToWall(state, 1);
+    return;
+  }
+  state.frogX = nextX;
 
   state.frogState = state.frogVY < 0 ? FrogState.Jump : FrogState.Fall;
   if (state.frogVX > 8) state.frogFacing = 1;
   else if (state.frogVX < -8) state.frogFacing = -1;
-
-  if (state.frogY < state.peakY) state.peakY = state.frogY;
 
   // One-way platforms: only a descending frog collides, and only if its feet
   // crossed the surface plane during this step. Comparing against the previous
@@ -225,7 +278,7 @@ export function stepFrog(state: GameState, dt: number) {
     if (state.enemyAlive[i] === 0 || state.enemyState[i] === EnemyState.Dying) continue;
 
     const spec = ENEMY_SPECS[state.enemyType[i]];
-    const dx = wrappedDeltaX(state.enemyX[i], state.frogX);
+    const dx = state.frogX - state.enemyX[i];
     if (Math.abs(dx) > FROG_HALF_W + spec.w / 2) continue;
 
     const headY = state.enemyY[i] - spec.halfH;
@@ -248,22 +301,9 @@ export function stepFrog(state: GameState, dt: number) {
     const left = state.platX[i] + spec.insetX;
     const right = state.platX[i] + spec.w - spec.insetX;
 
-    // Which wrapped copy of the frog is over this platform? We need the actual
-    // overlapping X, not just a yes/no, because a sloped surface's height
-    // depends on where along the platform the frog is standing.
-    let overlapX = 0;
-    let overlaps = false;
-    for (let k = -1; k <= 1; k += 1) {
-      const candidate = state.frogX + k * DESIGN_WIDTH;
-      if (candidate + FROG_HALF_W > left && candidate - FROG_HALF_W < right) {
-        overlapX = candidate;
-        overlaps = true;
-        break;
-      }
-    }
-    if (!overlaps) continue;
+    if (state.frogX + FROG_HALF_W <= left || state.frogX - FROG_HALF_W >= right) continue;
 
-    const surfaceY = surfaceYAt(spec, state.platY[i], overlapX, left, right);
+    const surfaceY = surfaceYAt(spec, state.platY[i], state.frogX, left, right);
     if (previousBottom > surfaceY || bottom < surfaceY) continue;
 
     // Several platforms can be crossed in one step; the frog stops at the
@@ -286,7 +326,7 @@ export function collectPickups(state: GameState) {
     const dy = state.pickY[i] - state.frogY;
     if (dy > PICKUP_RADIUS || dy < -PICKUP_RADIUS) continue;
 
-    const dx = wrappedDeltaX(state.frogX, state.pickX[i]);
+    const dx = state.pickX[i] - state.frogX;
     if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
 
     state.pickAlive[i] = 0;
@@ -296,7 +336,15 @@ export function collectPickups(state: GameState) {
       state.lives = Math.min(state.maxLives, state.lives + 1);
     } else state.coins += COIN_PICKUP_VALUE;
 
-    spawnFlyer(state, state.pickType[i] as PickupTypeValue, state.pickX[i], state.pickY[i] - state.camY);
+    // `spawnFlyer` freezes a screen-space start point for a HUD-relative flight
+    // (see its own doc comment), so the world position has to be run through
+    // the same camera-and-zoom transform the renderer uses, not handed over raw.
+    spawnFlyer(
+      state,
+      state.pickType[i] as PickupTypeValue,
+      (state.pickX[i] - state.camX) * state.zoom,
+      (state.pickY[i] - state.camY) * state.zoom
+    );
   }
 }
 

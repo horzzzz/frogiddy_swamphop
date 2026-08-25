@@ -5,7 +5,7 @@ import {
   ENEMY_WINDUP,
   MAX_ENEMIES,
 } from '@/game/constants';
-import { damageFrog, surfaceYAt, wrapX, wrappedDeltaX } from '@/game/physics';
+import { damageFrog, surfaceYAt } from '@/game/physics';
 import { ENEMY_SPECS, EnemyState, PLATFORM_SPECS, type GameState } from '@/game/types';
 
 /**
@@ -16,7 +16,7 @@ import { ENEMY_SPECS, EnemyState, PLATFORM_SPECS, type GameState } from '@/game/
  */
 function frogInRange(state: GameState, enemyX: number, enemyY: number): boolean {
   'worklet';
-  const dx = wrappedDeltaX(enemyX, state.frogX);
+  const dx = state.frogX - enemyX;
   const dy = state.frogY - enemyY;
   return Math.abs(dx) <= ENEMY_AGGRO_RANGE_X && Math.abs(dy) <= ENEMY_AGGRO_RANGE_Y;
 }
@@ -47,7 +47,7 @@ export function stepEnemies(state: GameState, dt: number) {
         state.enemyAlive[i] = 0;
         continue;
       }
-      state.enemyX[i] = wrapX(state.enemyX[i] + state.enemyDeathVX[i] * dt);
+      state.enemyX[i] += state.enemyDeathVX[i] * dt;
       state.enemyY[i] += state.enemyDeathVY[i] * dt;
       continue;
     }
@@ -63,7 +63,7 @@ export function stepEnemies(state: GameState, dt: number) {
     const spec = PLATFORM_SPECS[state.platType[plat]];
     const left = state.platX[plat] + spec.insetX;
     const right = state.platX[plat] + spec.w - spec.insetX;
-    const enemyX = wrapX(state.platX[plat] + state.enemyOffsetX[i]);
+    const enemyX = state.platX[plat] + state.enemyOffsetX[i];
     const enemySpec = ENEMY_SPECS[state.enemyType[i]];
     state.enemyX[i] = enemyX;
     state.enemyY[i] = surfaceYAt(spec, state.platY[plat], enemyX, left, right) - enemySpec.halfH;
@@ -72,7 +72,7 @@ export function stepEnemies(state: GameState, dt: number) {
 
     if (phase === EnemyState.Idle) {
       if (frogInRange(state, state.enemyX[i], state.enemyY[i])) {
-        state.enemyFacing[i] = wrappedDeltaX(state.enemyX[i], state.frogX) >= 0 ? 1 : -1;
+        state.enemyFacing[i] = state.frogX - state.enemyX[i] >= 0 ? 1 : -1;
         state.enemyState[i] = EnemyState.WindUp;
         state.enemyTimer[i] = ENEMY_WINDUP;
       }

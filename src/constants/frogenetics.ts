@@ -1,4 +1,13 @@
-import { AUTO_JUMP_IMPULSE_BASE, BASE_MAX_LIVES, GRAVITY, PIXELS_PER_METER, TONGUE_RANGE_BASE } from '@/game/constants';
+import {
+  AUTO_JUMP_IMPULSE_BASE,
+  BASE_MAX_LIVES,
+  DESIGN_WIDTH,
+  EYES_ZOOM_BASE,
+  EYES_ZOOM_STEP,
+  GRAVITY,
+  PIXELS_PER_METER,
+  TONGUE_RANGE_BASE,
+} from '@/game/constants';
 
 /**
  * The Frogenetics catalog — stat upgrades bought with coins, five levels each.
@@ -6,7 +15,7 @@ import { AUTO_JUMP_IMPULSE_BASE, BASE_MAX_LIVES, GRAVITY, PIXELS_PER_METER, TONG
  * screen, the card, and `game.tsx` (which seeds `GameState` for a run) all read
  * through the helpers below rather than repeating the numbers.
  */
-export type FrogeneticsId = 'tongue' | 'body' | 'legs';
+export type FrogeneticsId = 'eyes' | 'tongue' | 'body' | 'legs';
 
 /** Level per upgrade, 0 (unbought) through FROGENETICS_MAX_LEVEL. */
 export type FrogeneticsLevels = Record<FrogeneticsId, number>;
@@ -16,7 +25,7 @@ export const FROGENETICS_MAX_LEVEL = 5;
 export const FROGENETICS_BASE_PRICE = 300;
 export const FROGENETICS_PRICE_STEP = 150;
 
-export const DEFAULT_FROGENETICS_LEVELS: FrogeneticsLevels = { tongue: 0, body: 0, legs: 0 };
+export const DEFAULT_FROGENETICS_LEVELS: FrogeneticsLevels = { eyes: 0, tongue: 0, body: 0, legs: 0 };
 
 /** Coin cost to go from `level` to `level + 1`. Undefined past the cap. */
 export function upgradePrice(level: number): number {
@@ -29,6 +38,23 @@ export function upgradePrice(level: number): number {
  */
 export function upgradeScale(level: number): number {
   return 1 + 0.2 * level;
+}
+
+/**
+ * Field of view, not `upgradeScale` like every other stat here: the sell is
+ * "see the whole screen at max level", so the top of the ladder has to land
+ * on exactly 1 — the *unzoomed* view — rather than the generic ×2 every other
+ * Frogenetics stat caps at. Five levels of `EYES_ZOOM_STEP` exactly cancel
+ * `EYES_ZOOM_BASE`'s 0.5, so this is linear rather than routed through
+ * `upgradeScale` at all.
+ */
+export function zoomFor(level: number): number {
+  return EYES_ZOOM_BASE - EYES_ZOOM_STEP * level;
+}
+
+/** Visible width at the given Eyes level, in design units, for display. */
+export function visibleWidthFor(level: number): number {
+  return DESIGN_WIDTH / zoomFor(level);
 }
 
 export function maxLivesFor(level: number): number {
@@ -69,6 +95,13 @@ export type FrogeneticsUpgrade = {
 };
 
 export const FROGENETICS_UPGRADES: readonly FrogeneticsUpgrade[] = [
+  {
+    id: 'eyes',
+    name: 'Eyes',
+    description: 'Detection Range',
+    icon: require('@/assets/images/frogenetics/icon-eyes.webp'),
+    formatValue: (level) => `${(visibleWidthFor(level) / PIXELS_PER_METER).toFixed(1)} m`,
+  },
   {
     id: 'tongue',
     name: 'Tongue',

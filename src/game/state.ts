@@ -8,6 +8,7 @@ import {
   DESIGN_WIDTH,
   ENEMY_DEATH_LINGER,
   ENEMY_KILL_COINS,
+  EYES_ZOOM_BASE,
   FROG_HALF_H,
   GAP_MIN,
   HUD_COIN_TARGET_X,
@@ -172,7 +173,14 @@ export function killEnemy(state: GameState, index: number, knockVX = 0, knockVY 
 
   state.sfxFlags |= SFX_HIT;
   state.coins += ENEMY_KILL_COINS;
-  spawnFlyer(state, PickupType.Coin, state.enemyX[index], state.enemyY[index] - state.camY);
+  // Screen-space, same camera-and-zoom conversion `collectPickups` uses in
+  // physics.ts — see `spawnFlyer`'s own doc comment for why.
+  spawnFlyer(
+    state,
+    PickupType.Coin,
+    (state.enemyX[index] - state.camX) * state.zoom,
+    (state.enemyY[index] - state.camY) * state.zoom
+  );
   spawnDeathFx(state, state.enemyX[index], state.enemyY[index], state.enemyPhase[index]);
 }
 
@@ -221,11 +229,17 @@ export function resetRun(state: GameState, seed: number) {
   state.frogFacing = 1;
   state.grounded = true;
   state.groundedIndex = 0;
+  state.wallSide = 0;
+  state.wallTimer = 0;
 
   state.lives = state.maxLives;
   state.hurtTimer = 0;
 
   state.camY = state.frogY - state.viewH * CAMERA_ANCHOR;
+  // Same clamp `updateCamera` applies every frame after this — seeded once
+  // here so the very first drawn frame isn't centred on world X 0 while the
+  // frog sits mid-field.
+  state.camX = Math.min(Math.max(0, DESIGN_WIDTH - state.viewW), Math.max(0, state.frogX - state.viewW / 2));
 
   state.running = true;
   state.startY = state.frogY;
@@ -262,12 +276,14 @@ export type GameStateSetup = {
   maxLives: number;
   tongueRange: number;
   autoJumpImpulse: number;
+  zoom: number;
 };
 
 const DEFAULT_SETUP: GameStateSetup = {
   maxLives: BASE_MAX_LIVES,
   tongueRange: TONGUE_RANGE_BASE,
   autoJumpImpulse: AUTO_JUMP_IMPULSE_BASE,
+  zoom: EYES_ZOOM_BASE,
 };
 
 /**
@@ -288,12 +304,19 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
     frogFacing: 1,
     grounded: false,
     groundedIndex: -1,
+    /** -1 clinging to the left edge, 1 the right, 0 not clinging. */
+    wallSide: 0,
+    /** Counts down WALL_CLING_GRACE while a cling is frozen; see `stepWallCling`. */
+    wallTimer: 0,
 
     lives: setup.maxLives,
     hurtTimer: 0,
 
     camY: 0,
     viewH: DESIGN_HEIGHT,
+    camX: 0,
+    viewW: DESIGN_WIDTH / setup.zoom,
+    zoom: setup.zoom,
 
     running: false,
     startY: 0,
