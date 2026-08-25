@@ -62,7 +62,7 @@ export default function Frogenetics() {
  */
 const FRAME_INSET_H = 36;
 const FRAME_INSET_TOP = 40;
-const FRAME_INSET_BOTTOM = 32;
+const FRAME_INSET_BOTTOM = 48;
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -75,13 +75,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   panel: {
-    flex: 1,
     marginBottom: 16,
     borderRadius: 15,
     overflow: 'hidden',
   },
   panelContent: {
-    flex: 1,
     alignItems: 'center',
     paddingHorizontal: FRAME_INSET_H,
     paddingTop: FRAME_INSET_TOP,
@@ -92,12 +90,11 @@ const styles = StyleSheet.create({
     width: 243,
     height: 243,
     borderRadius: 15,
-    top: 8
+    marginTop: 8,
   },
   cards: {
-    flex: 1,
     width: '100%',
     gap: 8,
-    top: 16,
+    marginTop: 8,
   },
 });
