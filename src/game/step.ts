@@ -4,6 +4,7 @@ import { stepEnemies } from '@/game/enemy';
 import {
   checkDeath,
   collectPickups,
+  stepDeathFx,
   stepFlyers,
   stepFrog,
   stepHazards,
@@ -41,7 +42,8 @@ export function advance(state: GameState, frameDt: number) {
     // after the frog has actually moved, so aggro and attacks see this step's
     // real position, not last step's. Hazards run after enemies so they read
     // this step's already-ticked i-frame timer; flyers run after pickups so a
-    // flyer spawned this very step still gets a tick.
+    // flyer spawned this very step still gets a tick, and death effects run
+    // after enemies for the same reason.
     stepMovingPlatforms(state, FIXED_DT);
     resolveTouch(state);
     stepTongue(state, FIXED_DT);
@@ -50,6 +52,7 @@ export function advance(state: GameState, frameDt: number) {
     stepHazards(state);
     collectPickups(state);
     stepFlyers(state, FIXED_DT);
+    stepDeathFx(state, FIXED_DT);
 
     state.accumulator -= FIXED_DT;
     steps += 1;

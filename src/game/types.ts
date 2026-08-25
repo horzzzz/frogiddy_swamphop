@@ -370,4 +370,17 @@ export type GameState = {
   flyTargetX: Float32Array;
   flyTargetY: Float32Array;
   flyElapsed: Float32Array;
+
+  // Enemy death effect — smoke and a rising skull, spawned by `killEnemy`.
+  // Same "derive everything from elapsed" approach as the flyers above, with
+  // one deliberate difference: these hold *world* coordinates, not the frozen
+  // screen ones the flyers use. A flyer is heading for a fixed HUD pill and
+  // must ignore the camera; this effect belongs to the spot the enemy died on
+  // and has to scroll with it.
+  fxAlive: Uint8Array;
+  fxX: Float32Array;
+  fxY: Float32Array;
+  fxElapsed: Float32Array;
+  /** Phase offset that varies the puff spread and sway, so two nearby kills don't look identical. */
+  fxSeed: Float32Array;
 };

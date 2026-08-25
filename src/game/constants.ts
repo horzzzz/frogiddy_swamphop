@@ -262,6 +262,62 @@ export const HUD_LIFE_TARGET_X = 237.5;
 export const HUD_COIN_TARGET_X = 352.5;
 
 // ---------------------------------------------------------------------------
+// Enemy death effect
+// ---------------------------------------------------------------------------
+
+/**
+ * The puff-of-smoke-and-a-skull that marks a kill. Cosmetic only, spawned from
+ * `killEnemy` so every kill path gets it, and drawn entirely with Skia
+ * primitives — no texture is loaded for it. Like the flyers above, every value
+ * is derived from the effect's own elapsed time at draw time rather than
+ * stored, so a live effect costs one float of state and nothing else.
+ *
+ * Ten slots against sixteen enemies: it would take ten kills inside
+ * `DEATH_FX_DURATION` to exhaust the pool, and `spawnDeathFx` drops the spawn
+ * rather than misbehaving if it ever happened.
+ */
+export const MAX_DEATH_FX = 10;
+/**
+ * Deliberately longer than `ENEMY_DEATH_LINGER` (0.35): the skull should still
+ * be rising after the corpse it came from has finished dissolving, otherwise
+ * the two read as one clipped event instead of a body and a departing spirit.
+ */
+export const DEATH_FX_DURATION = 0.75;
+
+/** How far the skull climbs over its life, in design units. */
+export const DEATH_FX_RISE = 46;
+/** Peak horizontal sway either side of the climb — what makes it drift rather than launch. */
+export const DEATH_FX_SWAY = 5;
+/** Peak tilt in degrees, on the same sine as the sway so the two read as one motion. */
+export const DEATH_FX_TILT = 9;
+/** Fraction of the effect spent popping the skull up to full size. */
+export const DEATH_FX_POP_TIME = 0.18;
+/** How far past full size the pop overshoots before settling, e.g. 0.25 = +25%. */
+export const DEATH_FX_POP_OVERSHOOT = 0.25;
+/** Fraction of the effect after which the skull starts fading out. */
+export const DEATH_FX_FADE_START = 0.55;
+/** Height of the drawn skull in design units; the authored path is scaled to it. */
+export const DEATH_FX_SKULL_SIZE = 26;
+
+/** Number of smoke puffs thrown out around the skull. */
+export const DEATH_FX_PUFFS = 5;
+/** How far the puffs drift from the centre of the burst. */
+export const DEATH_FX_PUFF_SPREAD = 26;
+/** Puffs also drift upward, trailing the skull rather than hanging under it. */
+export const DEATH_FX_PUFF_LIFT = 16;
+export const DEATH_FX_PUFF_RADIUS_START = 5;
+export const DEATH_FX_PUFF_RADIUS_END = 15;
+/** Opacity of a puff at birth. They only ever fade from here. */
+export const DEATH_FX_PUFF_ALPHA = 0.55;
+
+/** Bone. Warm rather than pure white so it sits in the swamp palette. */
+export const DEATH_FX_SKULL_COLOR = '#F2ECDC';
+/** Eye sockets, nose and outline — the swamp's darkest green rather than black. */
+export const DEATH_FX_SKULL_DARK_COLOR = '#2C3A2A';
+/** Centre of a smoke puff. The gradient carries it out to fully transparent. */
+export const DEATH_FX_SMOKE_COLOR = '#C9D6C0';
+
+// ---------------------------------------------------------------------------
 // Presentation
 // ---------------------------------------------------------------------------
 

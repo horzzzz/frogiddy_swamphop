@@ -5,12 +5,14 @@ import {
   AIR_DRAG_PER_SECOND,
   BOUNCY_MULTIPLIER,
   COIN_PICKUP_VALUE,
+  DEATH_FX_DURATION,
   DESIGN_WIDTH,
   FLY_DURATION,
   FROG_HALF_H,
   FROG_HALF_W,
   FROG_HURT_INVULN,
   GRAVITY,
+  MAX_DEATH_FX,
   MAX_ENEMIES,
   MAX_FALL_SPEED,
   MAX_FLYERS,
@@ -330,6 +332,16 @@ export function stepFlyers(state: GameState, dt: number) {
     if (state.flyAlive[i] === 0) continue;
     state.flyElapsed[i] += dt;
     if (state.flyElapsed[i] >= FLY_DURATION) state.flyAlive[i] = 0;
+  }
+}
+
+/** Ages every enemy-death puff and frees it once the skull has faded out. */
+export function stepDeathFx(state: GameState, dt: number) {
+  'worklet';
+  for (let i = 0; i < MAX_DEATH_FX; i += 1) {
+    if (state.fxAlive[i] === 0) continue;
+    state.fxElapsed[i] += dt;
+    if (state.fxElapsed[i] >= DEATH_FX_DURATION) state.fxAlive[i] = 0;
   }
 }
 

@@ -4,6 +4,7 @@ import {
   Picture,
   Skia,
   StrokeCap,
+  TileMode,
   createPicture,
 } from '@shopify/react-native-skia';
 import { forwardRef, memo, useEffect, useImperativeHandle, useMemo } from 'react';
@@ -22,6 +23,9 @@ import {
   ATTACK_RANGE_X,
   ATTACK_RANGE_Y,
   CAMERA_ANCHOR,
+  DEATH_FX_SKULL_COLOR,
+  DEATH_FX_SKULL_DARK_COLOR,
+  DEATH_FX_SMOKE_COLOR,
   DESIGN_WIDTH,
   PIXELS_PER_METER,
   SFX_DAMAGE,
@@ -34,7 +38,12 @@ import {
   TONGUE_WIDTH,
 } from '@/game/constants';
 import { endTouch } from '@/game/tongue';
-import { drawScene, type RenderScratch } from '@/game/render';
+import {
+  SKULL_FEATURES_SVG,
+  SKULL_PATH_SVG,
+  drawScene,
+  type RenderScratch,
+} from '@/game/render';
 import { createGameState, heightInMeters, resetRun } from '@/game/state';
 import { advance } from '@/game/step';
 import { FrogState, TouchMode } from '@/game/types';
@@ -158,6 +167,51 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
     const enemyPaint = Skia.Paint();
     enemyPaint.setAntiAlias(true);
 
+    // Death-effect smoke. The gradient is authored once at radius 1 around the
+    // origin and every puff, at every size, is drawn by scaling the canvas onto
+    // it — so the soft edge costs one shader for the life of the screen rather
+    // than a blur the GPU would re-evaluate every frame.
+    const smoke = Skia.Color(DEATH_FX_SMOKE_COLOR);
+    const smokeStop = (alpha: number) => Float32Array.of(smoke[0], smoke[1], smoke[2], alpha);
+    const smokePaint = Skia.Paint();
+    smokePaint.setAntiAlias(true);
+    smokePaint.setShader(
+      Skia.Shader.MakeRadialGradient(
+        { x: 0, y: 0 },
+        1,
+        [smokeStop(1), smokeStop(0.75), smokeStop(0)],
+        [0, 0.45, 1],
+        TileMode.Clamp
+      )
+    );
+
+    const skullPaint = Skia.Paint();
+    skullPaint.setAntiAlias(true);
+    skullPaint.setColor(Skia.Color(DEATH_FX_SKULL_COLOR));
+
+    // Stroke width is in the skull path's own units, so it scales with the
+    // skull rather than needing to track DEATH_FX_SKULL_SIZE.
+    const skullOutlinePaint = Skia.Paint();
+    skullOutlinePaint.setAntiAlias(true);
+    skullOutlinePaint.setStyle(PaintStyle.Stroke);
+    skullOutlinePaint.setStrokeWidth(1.3);
+    skullOutlinePaint.setColor(Skia.Color(DEATH_FX_SKULL_DARK_COLOR));
+
+    const skullDarkPaint = Skia.Paint();
+    skullDarkPaint.setAntiAlias(true);
+    skullDarkPaint.setColor(Skia.Color(DEATH_FX_SKULL_DARK_COLOR));
+
+    // The path data is a hardcoded constant, so a parse failure is an authoring
+    // mistake rather than anything a player can hit. Degrade to an empty path
+    // instead of throwing: losing a cosmetic effect beats taking the game screen
+    // down with it, and the dev-only warning is what surfaces the real problem.
+    const parsePath = (svg: string, name: string) => {
+      const path = Skia.Path.MakeFromSVGString(svg);
+      if (path) return path;
+      if (__DEV__) console.warn(`[render] could not parse the ${name} path`);
+      return Skia.Path.Make();
+    };
+
     return {
       paint,
       dotPaint,
@@ -165,6 +219,12 @@ const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function G
       tongueTipPaint,
       aimPaint,
       enemyPaint,
+      smokePaint,
+      skullPaint,
+      skullOutlinePaint,
+      skullDarkPaint,
+      skullPath: parsePath(SKULL_PATH_SVG, 'skull'),
+      skullFeaturesPath: parsePath(SKULL_FEATURES_SVG, 'skull features'),
       dst: Skia.XYWHRect(0, 0, 0, 0),
       src: Skia.XYWHRect(0, 0, 0, 0),
     };

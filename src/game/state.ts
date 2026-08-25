@@ -16,6 +16,7 @@ import {
   HUD_TARGET_Y,
   JUMP_IMPULSE_MAX_BASE,
   JUMP_IMPULSE_MIN_BASE,
+  MAX_DEATH_FX,
   MAX_ENEMIES,
   MAX_FLYERS,
   MAX_PICKUPS,
@@ -86,6 +87,40 @@ export function spawnFlyer(state: GameState, kind: PickupTypeValue, x: number, y
 }
 
 /**
+ * Starts the puff-of-smoke-and-a-skull that marks a kill, at the point the enemy
+ * died. Stores world coordinates — unlike `spawnFlyer` above, which freezes
+ * screen ones because it is aiming at a fixed HUD pill; this effect stays put in
+ * the world and scrolls with the camera like the corpse it replaces.
+ *
+ * `seed` varies the puff spread and the skull's sway between kills. Callers pass
+ * the dying enemy's own `enemyPhase`, which is already a random value assigned
+ * at spawn — deliberately *not* a fresh `nextRandom`, because drawing from the
+ * run's seeded generator here would make level generation depend on how many
+ * enemies the player killed, and a run would stop being reproducible from its
+ * seed. See the note in rng.ts.
+ *
+ * Silently does nothing if the pool is full, same as `spawnFlyer`. Declared
+ * above `killEnemy` for the ordering reason documented there.
+ */
+export function spawnDeathFx(state: GameState, x: number, y: number, seed: number) {
+  'worklet';
+  let index = -1;
+  for (let i = 0; i < MAX_DEATH_FX; i += 1) {
+    if (state.fxAlive[i] === 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index === -1) return;
+
+  state.fxAlive[index] = 1;
+  state.fxX[index] = x;
+  state.fxY[index] = y;
+  state.fxElapsed[index] = 0;
+  state.fxSeed[index] = seed;
+}
+
+/**
  * Turns a live enemy into a fading corpse. Shared by the sword and the stomp, so
  * a kill always looks and behaves the same regardless of how it happened.
  * `knockVX`/`knockVY` are the corpse's flight speed while it fades — a stomp
@@ -112,6 +147,7 @@ export function killEnemy(state: GameState, index: number, knockVX = 0, knockVY 
   state.sfxFlags |= SFX_HIT;
   state.coins += ENEMY_KILL_COINS;
   spawnFlyer(state, PickupType.Coin, state.enemyX[index], state.enemyY[index] - state.camY);
+  spawnDeathFx(state, state.enemyX[index], state.enemyY[index], state.enemyPhase[index]);
 }
 
 /** World Y the starting platform is placed at. Arbitrary — everything is relative to it. */
@@ -132,6 +168,7 @@ export function resetRun(state: GameState, seed: number) {
   state.pickAlive.fill(0);
   state.enemyAlive.fill(0);
   state.flyAlive.fill(0);
+  state.fxAlive.fill(0);
 
   const spec = PLATFORM_SPECS[PlatformType.Start];
   const platX = (DESIGN_WIDTH - spec.w) / 2;
@@ -320,6 +357,12 @@ export function createGameState(setup: GameStateSetup = DEFAULT_SETUP): GameStat
     flyTargetX: new Float32Array(MAX_FLYERS),
     flyTargetY: new Float32Array(MAX_FLYERS),
     flyElapsed: new Float32Array(MAX_FLYERS),
+
+    fxAlive: new Uint8Array(MAX_DEATH_FX),
+    fxX: new Float32Array(MAX_DEATH_FX),
+    fxY: new Float32Array(MAX_DEATH_FX),
+    fxElapsed: new Float32Array(MAX_DEATH_FX),
+    fxSeed: new Float32Array(MAX_DEATH_FX),
   };
 
   resetRun(state, 1);
