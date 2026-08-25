@@ -6,7 +6,7 @@ import {
   StrokeCap,
   createPicture,
 } from '@shopify/react-native-skia';
-import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react';
+import { forwardRef, memo, useEffect, useImperativeHandle, useMemo } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
@@ -43,8 +43,11 @@ import { playSfx } from '@/services/audio';
 import type { Weapon } from '@/constants/weapons';
 import { jumpImpulsesFor, maxLivesFor, tongueRangeFor, type FrogeneticsLevels } from '@/constants/frogenetics';
 
-/** How often run totals are pushed to the React HUD. Never once per frame. */
-const STATS_INTERVAL_MS = 100;
+/**
+ * How often run totals are pushed to the React HUD, in simulation seconds.
+ * Never once per frame.
+ */
+const STATS_INTERVAL = 0.1;
 
 /**
  * Turns one frame's worth of sound cues into playback. Module scope because
@@ -84,7 +87,7 @@ type GameCanvasProps = {
   onReady?: () => void;
 };
 
-export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
+const GameCanvasInner = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
   { paused, weapon, upgrades, onStats, onGameOver, onReady },
   ref
 ) {
@@ -95,7 +98,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const attackRangeY = weapon?.rangeY ?? ATTACK_RANGE_Y;
   const maxLives = maxLivesFor(upgrades.body);
   const tongueRange = tongueRangeFor(upgrades.tongue);
-  const jumpImpulses = jumpImpulsesFor(upgrades.legs);
+  // Memoised for its identity, not its cost: it lands in a `useEffect` dep array
+  // below, and a fresh object every render would re-dispatch that `runOnUI`.
+  const jumpImpulses = useMemo(() => jumpImpulsesFor(upgrades.legs), [upgrades.legs]);
 
   // Scaling is driven by width so the horizontal wrap matches the 430-wide
   // mockups exactly; the visible height in design units then follows from the
@@ -236,8 +241,17 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
       return;
     }
 
-    if (info.timeSinceFirstFrame - lastStatsAt.value >= STATS_INTERVAL_MS) {
-      lastStatsAt.value = info.timeSinceFirstFrame;
+    // Throttled against the simulation clock, not Reanimated's frame clock.
+    // `timeSinceFirstFrame` restarts at 0 every time the frame callback is
+    // re-registered — which the worklet factory makes happen on *every* render
+    // of this component, including the render each stats push itself triggers.
+    // Comparing a fresh clock against a stale `lastStatsAt` stalled the HUD
+    // until the clock climbed back past it, and since the threshold grew by one
+    // interval each push, pickups took progressively longer to show up: 0.1s,
+    // then 0.2s, then 0.3s… seconds behind within a minute of play.
+    // `world.elapsed` survives re-registration, pause/resume and Game Over.
+    if (world.elapsed - lastStatsAt.value >= STATS_INTERVAL) {
+      lastStatsAt.value = world.elapsed;
       runOnJS(onStats)({
         meters: heightInMeters(world, PIXELS_PER_METER),
         coins: world.coins,
@@ -267,14 +281,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     () => ({
       restart: () => {
         gameOverSent.value = false;
-        // The frame callback got deactivated for the Game Over pause, and
-        // Reanimated resets its `timeSinceFirstFrame` clock to 0 the next time
-        // it's reactivated (see FrameCallbackRegistryUI's `startTime = null` on
-        // deactivate). Without this, `lastStatsAt` keeps the previous run's
-        // large leftover value, so `timeSinceFirstFrame - lastStatsAt` goes
-        // negative and the HUD doesn't get another stats push until the new
-        // run's clock climbs back past however long the last run lasted —
-        // which reads as "the counters just don't update after retry".
+        // `resetRun` zeroes `world.elapsed`, so the throttle's reference point
+        // has to go back to 0 with it — otherwise the new run's clock has to
+        // climb past the old run's length before the HUD updates again.
         lastStatsAt.value = 0;
         const seed = (Date.now() & 0x7fffffff) || 1;
         runOnUI((nextSeed: number, visibleHeight: number) => {
@@ -354,3 +363,22 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     </GestureDetector>
   );
 });
+
+/**
+ * The HUD is fed from inside this component, so every stats push re-renders the
+ * parent — and without this barrier that render would come straight back here,
+ * ten times a second, producing markup that never changes.
+ *
+ * The waste is not the render itself but what a render costs on the UI thread:
+ * the worklet factory hands `useFrameCallback` a new function object every time,
+ * which unregisters and re-registers the callback (tearing down and restarting
+ * its `requestAnimationFrame` loop), and the effects and `useAnimatedReaction`
+ * in the body re-dispatch alongside it.
+ *
+ * Every prop is already stable across a parent re-render — `weapon` is an
+ * element of the module-level `WEAPONS`, `upgrades` a slice of the persisted
+ * wallet, and the three callbacks are `useCallback`/`useState` setters — so the
+ * shallow compare holds, while a real change (`paused`, a bought upgrade, a
+ * newly equipped weapon) still gets through.
+ */
+export const GameCanvas = memo(GameCanvasInner);

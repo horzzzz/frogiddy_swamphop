@@ -60,6 +60,10 @@ export default function GameScreen() {
 
   const handleExit = useCallback(() => router.back(), [router]);
 
+  // Stable so it does not defeat GameCanvas's memo barrier — an inline arrow
+  // here would be a fresh prop on every stats push, i.e. ten times a second.
+  const handleReady = useCallback(() => setAssetsReady(true), []);
+
   const handleWatchAd = useCallback(async () => {
     if (watchingAd) return;
     setWatchingAd(true);
@@ -82,7 +86,7 @@ export default function GameScreen() {
         upgrades={upgrades}
         onStats={setStats}
         onGameOver={handleGameOver}
-        onReady={() => setAssetsReady(true)}
+        onReady={handleReady}
       />
 
       {assetsReady && (
